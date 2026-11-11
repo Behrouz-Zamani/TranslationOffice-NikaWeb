@@ -1,0 +1,47 @@
+﻿@page "/Account/Logout"
+@model TranslationOffice.Pages.Account.LogoutModel
+
+@{
+    Layout = null;
+}
+
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>خروج از حساب</title>
+    <link href="~/lib/bootstrap/dist/css/bootstrap.min.css" rel="stylesheet" />
+</head>
+<body class="bg-light">
+
+    <div class="container d-flex justify-content-center align-items-center"
+         style="min-height: 100vh;">
+
+        <div class="card shadow-sm p-4 text-center"
+             style="width: 100%; max-width: 420px;">
+
+            <h4 class="mb-3">خروج از حساب کاربری</h4>
+
+            <p class="text-muted">
+                آیا مطمئن هستید که می‌خواهید از حساب خود خارج شوید؟
+            </p>
+
+            <form method="post">
+                @Html.AntiForgeryToken()
+
+                <button type="submit" class="btn btn-danger w-100 mb-2">
+                    بله، خارج شو
+                </button>
+
+                <a href="/" class="btn btn-outline-secondary w-100">
+                    انصراف
+                </a>
+            </form>
+
+        </div>
+
+    </div>
+
+</body>
+</html>

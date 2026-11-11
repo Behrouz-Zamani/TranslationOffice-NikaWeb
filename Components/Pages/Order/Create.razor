@@ -1,0 +1,621 @@
+﻿@page "/order/create"
+
+@using TranslationOffice.Data
+@using TranslationOffice.Models
+@using TranslationOffice.Services
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.AspNetCore.Components.Forms
+
+@inject ApplicationDbContext Db
+@inject PricingService Pricing
+@inject OrderDocumentStorageService DocumentStorage
+@inject NavigationManager Navigation
+
+@rendermode InteractiveServer
+
+<h3 class="mb-4">ثبت سفارش ترجمه رسمی</h3>
+
+@if (documents == null)
+{
+    <p>در حال بارگذاری...</p>
+}
+else
+{
+    <div class="row">
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-header">انتخاب مدرک</div>
+                <div class="card-body">
+
+                    <div class="mb-3">
+                        <label class="form-label">نوع مدرک</label>
+                        <select class="form-select" @onchange="OnDocumentChanged">
+                            <option value="">انتخاب کنید...</option>
+                            @foreach (var doc in documents)
+                            {
+                                <option value="@doc.Id">@doc.Name</option>
+                            }
+                        </select>
+                    </div>
+
+                    @if (selectedDoc != null)
+                    {
+                        @if (selectedDoc.PricingType != PricingType.Fixed)
+                        {
+                            <div class="mb-3">
+                                <label class="form-label">
+                                    @(selectedDoc.PricingType == PricingType.PerLine
+                                        ? "تعداد سطر"
+                                        : "تعداد صفحه")
+                                </label>
+                                <input type="number"
+                                       class="form-control"
+                                       value="@units"
+                                       @oninput="OnUnitsChanged"
+                                       min="1" />
+                            </div>
+                        }
+
+                        <div class="mb-3">
+                            <label class="form-label">تعداد نسخه</label>
+                            <input type="number"
+                                   class="form-control"
+                                   value="@quantity"
+                                   @oninput="OnQuantityChanged"
+                                   min="1" />
+                        </div>
+
+                        <div class="form-check mb-2">
+                            <input class="form-check-input"
+                                   type="checkbox"
+                                   id="judiciary"
+                                   checked="@needJudiciary"
+                                   @onchange="OnJudiciaryChanged" />
+                            <label class="form-check-label" for="judiciary">
+                                نیاز به تأیید دادگستری
+                            </label>
+                        </div>
+
+                        <div class="form-check mb-3">
+                            <input class="form-check-input"
+                                   type="checkbox"
+                                   id="foreign"
+                                   checked="@needForeignAffairs"
+                                   @onchange="OnForeignChanged" />
+                            <label class="form-check-label" for="foreign">
+                                نیاز به تأیید وزارت خارجه
+                            </label>
+                        </div>
+
+                        <hr />
+
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">
+                                بارگذاری تصویر یا فایل مدرک
+                            </label>
+
+                            <InputFile OnChange="OnFilesSelected"
+                                       multiple
+                                       accept=".pdf,.jpg,.jpeg,.png"
+                                       class="form-control"
+                                       disabled="@isSubmitting" />
+
+                            <small class="text-muted d-block mt-2">
+                                فرمت‌های مجاز: PDF، JPG، JPEG و PNG
+                                <br />
+                                حداکثر حجم هر فایل: ۱۰ مگابایت
+                                <br />
+                                حداکثر ۱۰ فایل و مجموعاً ۳۰ مگابایت برای هر مدرک
+                            </small>
+                        </div>
+
+                        @if (selectedFiles.Any())
+                        {
+                            <div class="border rounded p-3 mb-3">
+                                <strong>فایل‌های انتخاب‌شده:</strong>
+                                <ul class="list-group list-group-flush mt-2">
+                                    @foreach (var file in selectedFiles)
+                                    {
+                                        <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                                            <span class="text-break">
+                                                @file.Name
+                                                <small class="text-muted">
+                                                    (@FormatFileSize(file.Size))
+                                                </small>
+                                            </span>
+                                            <button type="button"
+                                                    class="btn btn-sm btn-outline-danger"
+                                                    @onclick="() => RemoveSelectedFile(file)">
+                                                حذف
+                                            </button>
+                                        </li>
+                                    }
+                                </ul>
+                            </div>
+                        }
+
+                        <div class="alert alert-info d-flex justify-content-between align-items-center">
+                            <strong>قیمت نهایی:</strong>
+                            <span class="fs-4 fw-bold">
+                                @currentPrice.ToString("N0") تومان
+                            </span>
+                        </div>
+
+                        <button type="button"
+                                class="btn btn-primary w-100"
+                                @onclick="AddToCart"
+                                disabled="@isSubmitting">
+                            افزودن به سبد
+                        </button>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-header">سبد سفارش</div>
+                <div class="card-body">
+
+                    @if (cart.Any())
+                    {
+                        @foreach (var item in cart)
+                        {
+                            <div class="border rounded p-3 mb-3">
+                                <div class="d-flex justify-content-between">
+                                    <strong>@item.DocumentName</strong>
+                                    <button type="button"
+                                            class="btn btn-sm btn-outline-danger"
+                                            @onclick="() => RemoveFromCart(item)"
+                                            disabled="@isSubmitting">
+                                        حذف
+                                    </button>
+                                </div>
+
+                                <div class="small text-muted mt-2">
+                                    تعداد نسخه: @item.Quantity
+                                    <br />
+                                    تعداد سطر/صفحه: @item.Units
+                                </div>
+
+                                <div class="mt-2">
+                                    <strong>مبلغ:</strong>
+                                    @item.TotalPrice.ToString("N0") تومان
+                                </div>
+
+                                <div class="mt-2">
+                                    <strong>فایل‌های پیوست:</strong>
+                                    @if (item.Files.Any())
+                                    {
+                                        <ul class="small mb-0 mt-1">
+                                            @foreach (var file in item.Files)
+                                            {
+                                                <li>
+                                                    @file.Name (@FormatFileSize(file.Size))
+                                                </li>
+                                            }
+                                        </ul>
+                                    }
+                                    else
+                                    {
+                                        <div class="small text-muted">
+                                            هنوز فایلی انتخاب نشده است.
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+                        }
+
+                        <div class="alert alert-success d-flex justify-content-between">
+                            <strong>جمع کل:</strong>
+                            <span class="fw-bold">
+                                @cart.Sum(x => x.TotalPrice).ToString("N0") تومان
+                            </span>
+                        </div>
+
+                        <button type="button"
+                                class="btn btn-success w-100"
+                                @onclick="SubmitOrder"
+                                disabled="@isSubmitting">
+                            @(isSubmitting
+                                ? "در حال ثبت سفارش و بارگذاری فایل‌ها..."
+                                : "ثبت نهایی سفارش")
+                        </button>
+                    }
+                    else
+                    {
+                        <p class="text-muted text-center my-4">
+                            سبد سفارش خالی است.
+                        </p>
+                    }
+
+                    @if (!string.IsNullOrWhiteSpace(errorMessage))
+                    {
+                        <div class="alert alert-danger mt-3">
+                            <strong>خطا:</strong>
+                            <div class="mt-1">@errorMessage</div>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private const long MaxFileSize = 10 * 1024 * 1024;
+    private const long MaxTotalFileSizePerDocument = 30 * 1024 * 1024;
+    private const int MaxFilesPerDocument = 10;
+
+    private static readonly HashSet<string> AllowedExtensions =
+        new(StringComparer.OrdinalIgnoreCase)
+        {
+            ".pdf", ".jpg", ".jpeg", ".png"
+        };
+
+    private List<DocumentType>? documents;
+    private DocumentType? selectedDoc;
+
+    private int units = 1;
+    private int quantity = 1;
+
+    private bool needJudiciary;
+    private bool needForeignAffairs;
+
+    private decimal currentPrice;
+    private bool isSubmitting;
+    private string? errorMessage;
+
+    private List<UploadedFileData> selectedFiles = new();
+    private List<CartItem> cart = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        documents = await Db.DocumentTypes
+            .Where(x => x.IsActive)
+            .OrderBy(x => x.Name)
+            .ToListAsync();
+    }
+
+    private void OnDocumentChanged(ChangeEventArgs e)
+    {
+        selectedFiles.Clear();
+        errorMessage = null;
+
+        if (int.TryParse(e.Value?.ToString(), out int id))
+        {
+            selectedDoc = documents?.FirstOrDefault(x => x.Id == id);
+
+            units = 1;
+            quantity = 1;
+            needJudiciary = false;
+            needForeignAffairs = false;
+
+            CalculatePrice();
+        }
+        else
+        {
+            selectedDoc = null;
+            currentPrice = 0;
+        }
+    }
+
+    private void OnUnitsChanged(ChangeEventArgs e)
+    {
+        units = int.TryParse(e.Value?.ToString(), out int val) && val > 0
+            ? val : 1;
+
+        CalculatePrice();
+    }
+
+    private void OnQuantityChanged(ChangeEventArgs e)
+    {
+        quantity = int.TryParse(e.Value?.ToString(), out int val) && val > 0
+            ? val : 1;
+
+        CalculatePrice();
+    }
+
+    private void OnJudiciaryChanged(ChangeEventArgs e)
+    {
+        needJudiciary = e.Value is bool value && value;
+        CalculatePrice();
+    }
+
+    private void OnForeignChanged(ChangeEventArgs e)
+    {
+        needForeignAffairs = e.Value is bool value && value;
+        CalculatePrice();
+    }
+
+    private void CalculatePrice()
+    {
+        if (selectedDoc == null)
+        {
+            currentPrice = 0;
+            return;
+        }
+
+        currentPrice = Pricing.Calculate(
+            selectedDoc,
+            units,
+            quantity,
+            needJudiciary,
+            needForeignAffairs);
+    }
+
+    private async Task OnFilesSelected(InputFileChangeEventArgs e)
+    {
+        errorMessage = null;
+
+        try
+        {
+            var files = e.GetMultipleFiles(MaxFilesPerDocument);
+
+            if (selectedFiles.Count + files.Count > MaxFilesPerDocument)
+            {
+                errorMessage = "برای هر مدرک حداکثر ۱۰ فایل می‌توانید انتخاب کنید.";
+                return;
+            }
+
+            long currentTotalSize = selectedFiles.Sum(x => x.Size);
+
+            foreach (var file in files)
+            {
+                var extension = Path.GetExtension(file.Name);
+
+                if (!AllowedExtensions.Contains(extension))
+                {
+                    errorMessage = $"فرمت فایل «{file.Name}» مجاز نیست.";
+                    return;
+                }
+
+                if (file.Size <= 0 || file.Size > MaxFileSize)
+                {
+                    errorMessage = $"حجم فایل «{file.Name}» باید بیشتر از صفر و حداکثر ۱۰ مگابایت باشد.";
+                    return;
+                }
+
+                if (selectedFiles.Any(x => x.Name == file.Name && x.Size == file.Size))
+                    continue;
+
+                if (currentTotalSize + file.Size > MaxTotalFileSizePerDocument)
+                {
+                    errorMessage = "مجموع حجم فایل‌های هر مدرک نباید بیشتر از ۳۰ مگابایت باشد.";
+                    return;
+                }
+
+                await using var input = file.OpenReadStream(MaxFileSize);
+                await using var memory = new MemoryStream();
+
+                await input.CopyToAsync(memory);
+
+                var bytes = memory.ToArray();
+
+                if (bytes.Length != file.Size)
+                {
+                    errorMessage = $"خواندن فایل «{file.Name}» کامل انجام نشد. دوباره انتخابش کن.";
+                    return;
+                }
+
+                selectedFiles.Add(new UploadedFileData
+                {
+                    Name = Path.GetFileName(file.Name),
+                    Size = file.Size,
+                    ContentType = file.ContentType,
+                    Extension = extension.ToLowerInvariant(),
+                    Content = bytes
+                });
+
+                currentTotalSize += file.Size;
+            }
+        }
+        catch (InvalidOperationException ex)
+        {
+            errorMessage = $"خطا در انتخاب فایل: {ex.Message}";
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"خطا در خواندن فایل: {ex.GetBaseException().Message}";
+        }
+    }
+
+    private void RemoveSelectedFile(UploadedFileData file)
+    {
+        selectedFiles.Remove(file);
+    }
+
+    private void AddToCart()
+    {
+        errorMessage = null;
+
+        if (selectedDoc == null)
+        {
+            errorMessage = "لطفاً نوع مدرک را انتخاب کنید.";
+            return;
+        }
+
+        if (quantity < 1 || units < 1)
+        {
+            errorMessage = "تعداد نسخه و تعداد واحد باید حداقل یک باشد.";
+            return;
+        }
+
+        cart.Add(new CartItem
+        {
+            DocumentTypeId = selectedDoc.Id,
+            DocumentName = selectedDoc.Name,
+            Units = selectedDoc.PricingType == PricingType.Fixed ? 1 : units,
+            Quantity = quantity,
+            NeedJudiciary = needJudiciary,
+            NeedForeignAffairs = needForeignAffairs,
+            TotalPrice = currentPrice,
+            Files = selectedFiles.ToList()
+        });
+
+        selectedDoc = null;
+        selectedFiles.Clear();
+
+        units = 1;
+        quantity = 1;
+        needJudiciary = false;
+        needForeignAffairs = false;
+        currentPrice = 0;
+    }
+
+    private void RemoveFromCart(CartItem item)
+    {
+        cart.Remove(item);
+    }
+
+    private async Task SubmitOrder()
+    {
+        if (!cart.Any() || isSubmitting)
+            return;
+
+        isSubmitting = true;
+        errorMessage = null;
+
+        var guestToken = GuestOrderToken.Generate();
+        var savedDocuments = new List<OrderDocument>();
+
+        try
+        {
+            await using var transaction =
+                await Db.Database.BeginTransactionAsync();
+
+            decimal serverTotal = 0;
+
+            var order = new Order
+            {
+                OrderNumber = "TR-" +
+                    Guid.NewGuid().ToString("N")[..12].ToUpperInvariant(),
+
+                UserId = null,
+                GuestAccessTokenHash = GuestOrderToken.Hash(guestToken),
+                Status = "PendingPayment",
+                CreatedAt = DateTime.Now
+            };
+
+            foreach (var cartItem in cart)
+            {
+                var documentType = await Db.DocumentTypes
+                    .FirstOrDefaultAsync(x =>
+                        x.Id == cartItem.DocumentTypeId && x.IsActive);
+
+                if (documentType == null)
+                    throw new InvalidOperationException(
+                        "یکی از مدارک انتخاب‌شده دیگر فعال نیست.");
+
+                if (cartItem.Quantity < 1 || cartItem.Units < 1)
+                    throw new InvalidOperationException(
+                        "تعداد نسخه یا تعداد واحد معتبر نیست.");
+
+                if (cartItem.Files.Count > MaxFilesPerDocument)
+                    throw new InvalidOperationException(
+                        "برای هر مدرک حداکثر ۱۰ فایل مجاز است.");
+
+                var itemPrice = Pricing.Calculate(
+                    documentType,
+                    cartItem.Units,
+                    cartItem.Quantity,
+                    cartItem.NeedJudiciary,
+                    cartItem.NeedForeignAffairs);
+
+                serverTotal += itemPrice;
+
+                order.Items.Add(new OrderItem
+                {
+                    DocumentTypeId = documentType.Id,
+                    Units = cartItem.Units,
+                    Quantity = cartItem.Quantity,
+                    NeedJudiciary = cartItem.NeedJudiciary,
+                    NeedForeignAffairs = cartItem.NeedForeignAffairs,
+                    TotalPrice = itemPrice,
+                    Status = "Pending"
+                });
+            }
+
+            order.TotalPrice = serverTotal;
+
+            Db.Orders.Add(order);
+            await Db.SaveChangesAsync();
+
+            for (var i = 0; i < cart.Count; i++)
+            {
+                var cartItem = cart[i];
+                var orderItem = order.Items.ElementAt(i);
+
+                foreach (var file in cartItem.Files)
+                {
+                    var savedDocument = await DocumentStorage.SaveAsync(
+                        file.Name,
+                        file.Content,
+                        order.Id,
+                        orderItem.Id);
+
+                    savedDocuments.Add(savedDocument);
+                    Db.OrderDocuments.Add(savedDocument);
+                }
+            }
+
+            await Db.SaveChangesAsync();
+            await transaction.CommitAsync();
+
+            cart.Clear();
+            selectedFiles.Clear();
+
+            Navigation.NavigateTo(
+                $"/order/success/{order.Id}?token={Uri.EscapeDataString(guestToken)}");
+        }
+        catch (Exception ex)
+        {
+            foreach (var file in savedDocuments)
+            {
+                try
+                {
+                    await DocumentStorage.DeleteAsync(file.StoredFileName);
+                }
+                catch
+                {
+                    // خطای حذف فایل نباید خطای اصلی را پنهان کند.
+                }
+            }
+
+            errorMessage = $"ثبت سفارش با خطا مواجه شد: {ex.GetBaseException().Message}";
+            Console.Error.WriteLine(ex);
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+
+    private static string FormatFileSize(long size)
+    {
+        return size < 1024 * 1024
+            ? $"{size / 1024.0:N0} KB"
+            : $"{size / (1024.0 * 1024):N2} MB";
+    }
+
+    public class UploadedFileData
+    {
+        public string Name { get; set; } = "";
+        public long Size { get; set; }
+        public string ContentType { get; set; } = "";
+        public string Extension { get; set; } = "";
+        public byte[] Content { get; set; } = Array.Empty<byte>();
+    }
+
+    public class CartItem
+    {
+        public int DocumentTypeId { get; set; }
+        public string DocumentName { get; set; } = "";
+        public int Units { get; set; }
+        public int Quantity { get; set; }
+        public bool NeedJudiciary { get; set; }
+        public bool NeedForeignAffairs { get; set; }
+        public decimal TotalPrice { get; set; }
+        public List<UploadedFileData> Files { get; set; } = new();
+    }
+}

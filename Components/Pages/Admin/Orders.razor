@@ -1,0 +1,378 @@
+﻿@* @page "/admin/orders" *@
+
+@using TranslationOffice.Data
+@using TranslationOffice.Models
+@using Microsoft.EntityFrameworkCore
+
+@inject ApplicationDbContext Db
+
+@rendermode InteractiveServer
+
+<PageTitle>مدیریت سفارش‌ها</PageTitle>
+
+<h3 class="mb-4">مدیریت سفارش‌ها</h3>
+
+@if (orders == null)
+{
+    <div class="text-center py-5">
+        <div class="spinner-border text-primary"></div>
+        <p class="mt-2">در حال بارگذاری اطلاعات...</p>
+    </div>
+}
+else
+{
+    <div class="row g-3 mb-4">
+
+        <div class="col-md-3">
+            <div class="card shadow-sm border-0">
+                <div class="card-body">
+                    <div class="text-muted">کل سفارش‌ها</div>
+                    <h3>@orders.Count</h3>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="card shadow-sm border-0">
+                <div class="card-body">
+                    <div class="text-muted">در انتظار پرداخت</div>
+                    <h3 class="text-warning">
+                        @orders.Count(x => x.Status == "PendingPayment")
+                    </h3>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="card shadow-sm border-0">
+                <div class="card-body">
+                    <div class="text-muted">در حال ترجمه</div>
+                    <h3 class="text-primary">
+                        @orders.Count(x => x.Items.Any(i => i.Status == "InProgress"))
+                    </h3>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="card shadow-sm border-0">
+                <div class="card-body">
+                    <div class="text-muted">تکمیل‌شده</div>
+                    <h3 class="text-success">
+                        @orders.Count(x =>
+                            x.Items.Any() &&
+                            x.Items.All(i => i.Status == "Completed"))
+                    </h3>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h5 class="mb-0">فهرست سفارش‌ها</h5>
+
+        <button class="btn btn-outline-primary btn-sm"
+                @onclick="LoadData"
+                disabled="@isLoading">
+            <i class="bi bi-arrow-clockwise"></i>
+            بروزرسانی
+        </button>
+    </div>
+
+    @if (!orders.Any())
+    {
+        <div class="alert alert-info">
+            هنوز سفارشی ثبت نشده است.
+        </div>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table table-bordered table-hover align-middle">
+
+                <thead class="table-light">
+                    <tr>
+                        <th>شماره سفارش</th>
+                        <th>تاریخ</th>
+                        <th>مبلغ کل</th>
+                        <th>وضعیت پرداخت</th>
+                        <th>وضعیت ترجمه</th>
+                        <th>تعداد آیتم</th>
+                        <th>عملیات</th>
+                    </tr>
+                </thead>
+
+                <tbody>
+                    @foreach (var order in orders)
+                    {
+                        <tr>
+                            <td>
+                                <strong>@order.OrderNumber</strong>
+                            </td>
+
+                            <td>
+                                @order.CreatedAt.ToString("yyyy/MM/dd HH:mm")
+                            </td>
+
+                            <td>
+                                @order.TotalPrice.ToString("N0") تومان
+                            </td>
+
+                            <td>
+                                <span class="badge @GetPaymentBadgeClass(order.Status)">
+                                    @GetPaymentStatusTitle(order.Status)
+                                </span>
+                            </td>
+
+                            <td>
+                                <span class="badge @GetProgressBadgeClass(order)">
+                                    @GetProgressStatusTitle(order)
+                                </span>
+                            </td>
+
+                            <td>
+                                @order.Items.Count
+                            </td>
+
+                            <td>
+                                <button class="btn btn-sm btn-outline-primary"
+                                        @onclick="() => ToggleDetails(order.Id)">
+                                    @(expandedOrderId == order.Id ? "بستن" : "جزئیات")
+                                </button>
+                            </td>
+                        </tr>
+
+                        @if (expandedOrderId == order.Id)
+                        {
+                            <tr>
+                                <td colspan="7" class="bg-light p-3">
+
+                                    <div class="mb-3">
+                                        <strong>شماره سفارش:</strong>
+                                        @order.OrderNumber
+                                        <br />
+
+                                        <strong>وضعیت پرداخت:</strong>
+                                        @GetPaymentStatusTitle(order.Status)
+                                        <br />
+
+                                        <strong>وضعیت ترجمه:</strong>
+                                        @GetProgressStatusTitle(order)
+                                    </div>
+
+                                    <div class="table-responsive">
+                                        <table class="table table-sm table-bordered bg-white mb-0">
+
+                                            <thead class="table-light">
+                                                <tr>
+                                                    <th>مدرک</th>
+                                                    <th>تعداد نسخه</th>
+                                                    <th>سطر/صفحه</th>
+                                                    <th>دادگستری</th>
+                                                    <th>خارجه</th>
+                                                    <th>قیمت</th>
+                                                    <th>وضعیت ترجمه</th>
+                                                    <th>مترجم</th>
+                                                </tr>
+                                            </thead>
+
+                                            <tbody>
+                                                @foreach (var item in order.Items)
+                                                {
+                                                    <tr>
+                                                        <td>
+                                                            @item.DocumentType?.Name
+                                                        </td>
+
+                                                        <td>
+                                                            @item.Quantity
+                                                        </td>
+
+                                                        <td>
+                                                            @item.Units
+                                                        </td>
+
+                                                        <td>
+                                                            @(item.NeedJudiciary ? "بله" : "خیر")
+                                                        </td>
+
+                                                        <td>
+                                                            @(item.NeedForeignAffairs ? "بله" : "خیر")
+                                                        </td>
+
+                                                        <td>
+                                                            @item.TotalPrice.ToString("N0")
+                                                        </td>
+
+                                                        <td>
+                                                            <span class="badge @GetItemStatusBadgeClass(item.Status)">
+                                                                @GetItemStatusTitle(item.Status)
+                                                            </span>
+                                                        </td>
+
+                                                        <td>
+                                                            @(string.IsNullOrWhiteSpace(item.TranslatorId)
+                                                                ? "تعیین نشده"
+                                                                : "اختصاص داده شده")
+                                                        </td>
+                                                    </tr>
+                                                }
+                                            </tbody>
+
+                                        </table>
+                                    </div>
+
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+
+            </table>
+        </div>
+    }
+}
+
+@if (!string.IsNullOrWhiteSpace(errorMessage))
+{
+    <div class="alert alert-danger mt-3">
+        @errorMessage
+    </div>
+}
+
+@code {
+
+    private List<Order>? orders;
+
+    private int? expandedOrderId;
+
+    private bool isLoading;
+
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        isLoading = true;
+        errorMessage = null;
+
+        try
+        {
+            orders = await Db.Orders
+                .AsNoTracking()
+                .Include(o => o.Items)
+                    .ThenInclude(i => i.DocumentType)
+                .OrderByDescending(o => o.CreatedAt)
+                .ToListAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage =
+                $"خطا در دریافت سفارش‌ها: {ex.GetBaseException().Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void ToggleDetails(int orderId)
+    {
+        expandedOrderId =
+            expandedOrderId == orderId ? null : orderId;
+    }
+
+    private static string GetPaymentStatusTitle(string? status)
+    {
+        return status switch
+        {
+            "PendingPayment" => "در انتظار پرداخت",
+            "Paid" => "پرداخت شده",
+            "Processing" => "در حال پردازش",
+            "Completed" => "تکمیل شده",
+            "Cancelled" => "لغو شده",
+            _ => status ?? "نامشخص"
+        };
+    }
+
+    private static string GetPaymentBadgeClass(string? status)
+    {
+        return status switch
+        {
+            "PendingPayment" => "bg-warning text-dark",
+            "Paid" => "bg-success",
+            "Processing" => "bg-primary",
+            "Completed" => "bg-success",
+            "Cancelled" => "bg-danger",
+            _ => "bg-secondary"
+        };
+    }
+
+    private static string GetProgressStatusTitle(Order order)
+    {
+        if (order.Status == "Cancelled")
+            return "لغو شده";
+
+        if (!order.Items.Any())
+            return "بدون مدرک";
+
+        if (order.Items.All(x => x.Status == "Completed"))
+            return "تکمیل شده";
+
+        if (order.Items.Any(x => x.Status == "InProgress"))
+            return "در حال ترجمه";
+
+        if (order.Items.Any(x => x.Status == "Pending"))
+            return "در انتظار شروع";
+
+        return "نامشخص";
+    }
+
+    private static string GetProgressBadgeClass(Order order)
+    {
+        if (order.Status == "Cancelled")
+            return "bg-danger";
+
+        if (!order.Items.Any())
+            return "bg-secondary";
+
+        if (order.Items.All(x => x.Status == "Completed"))
+            return "bg-success";
+
+        if (order.Items.Any(x => x.Status == "InProgress"))
+            return "bg-primary";
+
+        if (order.Items.Any(x => x.Status == "Pending"))
+            return "bg-warning text-dark";
+
+        return "bg-secondary";
+    }
+
+    private static string GetItemStatusTitle(string? status)
+    {
+        return status switch
+        {
+            "Pending" => "در انتظار شروع",
+            "InProgress" => "در حال ترجمه",
+            "Completed" => "تکمیل شده",
+            _ => status ?? "نامشخص"
+        };
+    }
+
+    private static string GetItemStatusBadgeClass(string? status)
+    {
+        return status switch
+        {
+            "Pending" => "bg-secondary",
+            "InProgress" => "bg-primary",
+            "Completed" => "bg-success",
+            _ => "bg-secondary"
+        };
+    }
+}
+

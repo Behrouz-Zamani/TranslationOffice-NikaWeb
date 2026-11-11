@@ -1,0 +1,241 @@
+﻿@page "/admin/documents"
+@using TranslationOffice.Data
+@using TranslationOffice.Models
+@using Microsoft.EntityFrameworkCore
+@inject ApplicationDbContext Db
+@rendermode InteractiveServer
+
+<h3 class="mb-4">مدیریت انواع اسناد و قیمت‌ها</h3>
+
+@if (documents == null)
+{
+    <p>در حال بارگذاری...</p>
+}
+else
+{
+    <div class="mb-3">
+        <button class="btn btn-success" @onclick="ShowAddForm">+ افزودن سند جدید</button>
+    </div>
+
+    @if (showForm)
+    {
+        <div class="card mb-4">
+            <div class="card-header">
+                @(editingItem == null ? "افزودن سند جدید" : "ویرایش سند")
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label">نام مدرک</label>
+                        <input class="form-control" @bind="form.Name" />
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label">نوع قیمت‌گذاری</label>
+                        <select class="form-select" @bind="form.PricingType">
+                            <option value="@PricingType.Fixed">ثابت</option>
+                            <option value="@PricingType.PerLine">بر اساس سطر</option>
+                            <option value="@PricingType.PerPage">بر اساس صفحه</option>
+                        </select>
+                    </div>
+
+                    <div class="col-md-4">
+                        <label class="form-label">قیمت پایه (ریال)</label>
+                        <input type="number" class="form-control" @bind="form.BasePrice" />
+                    </div>
+
+                    <div class="col-md-4">
+                        <label class="form-label">تعداد رایگان (سطر/صفحه)</label>
+                        <input type="number" class="form-control" @bind="form.FreeUnits" />
+                    </div>
+
+                    <div class="col-md-4">
+                        <label class="form-label">قیمت هر واحد اضافی</label>
+                        <input type="number" class="form-control" @bind="form.PricePerExtraUnit" />
+                    </div>
+
+                    <div class="col-md-4">
+                        <label class="form-label">قیمت نسخه اضافی</label>
+                        <input type="number" class="form-control" @bind="form.ExtraCopyPrice" />
+                    </div>
+
+                    <div class="col-md-4">
+                        <label class="form-label">هزینه دادگستری</label>
+                        <input type="number" class="form-control" @bind="form.JudiciaryFee" />
+                    </div>
+
+                    <div class="col-md-4">
+                        <label class="form-label">هزینه وزارت خارجه</label>
+                        <input type="number" class="form-control" @bind="form.ForeignAffairsFee" />
+                    </div>
+
+                    <div class="col-md-4">
+                        <div class="form-check mt-4">
+                            <input class="form-check-input" type="checkbox" @bind="form.IsActive" id="isActive" />
+                            <label class="form-check-label" for="isActive">فعال</label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-3">
+                    <button class="btn btn-primary" @onclick="Save">ذخیره</button>
+                    <button class="btn btn-secondary" @onclick="Cancel">انصراف</button>
+                </div>
+            </div>
+        </div>
+    }
+
+    <table class="table table-bordered table-hover">
+        <thead class="table-light">
+            <tr>
+                <th>نام مدرک</th>
+                <th>نوع قیمت</th>
+                <th>قیمت پایه</th>
+                <th>نسخه اضافی</th>
+                <th>دادگستری</th>
+                <th>خارجه</th>
+                <th>وضعیت</th>
+                <th>عملیات</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var doc in documents)
+            {
+                <tr>
+                    <td>@doc.Name</td>
+                    <td>
+                        @switch (doc.PricingType)
+                        {
+                            case PricingType.Fixed:
+                                <span>ثابت</span>
+                                break;
+                            case PricingType.PerLine:
+                                <span>سطر</span>
+                                break;
+                            case PricingType.PerPage:
+                                <span>صفحه</span>
+                                break;
+                        }
+                    </td>
+                    <td>@doc.BasePrice.ToString("N0")</td>
+                    <td>@doc.ExtraCopyPrice.ToString("N0")</td>
+                    <td>@doc.JudiciaryFee.ToString("N0")</td>
+                    <td>@doc.ForeignAffairsFee.ToString("N0")</td>
+                    <td>
+                        @if (doc.IsActive)
+                        {
+                            <span class="badge bg-success">فعال</span>
+                        }
+                        else
+                        {
+                            <span class="badge bg-secondary">غیرفعال</span>
+                        }
+                    </td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-primary" @onclick="() => Edit(doc)">ویرایش</button>
+                        <button class="btn btn-sm btn-outline-danger" @onclick="() => Delete(doc)">حذف</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    List<DocumentType>? documents;
+    bool showForm = false;
+    DocumentType? editingItem;
+    DocumentType form = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    async Task LoadData()
+    {
+        documents = await Db.DocumentTypes
+            .OrderBy(x => x.Name)
+            .ToListAsync();
+    }
+
+    void ShowAddForm()
+    {
+        editingItem = null;
+        form = new DocumentType
+        {
+            IsActive = true,
+            PricingType = PricingType.Fixed
+        };
+        showForm = true;
+    }
+
+    void Edit(DocumentType doc)
+    {
+        editingItem = doc;
+        form = new DocumentType
+        {
+            Id = doc.Id,
+            Name = doc.Name,
+            PricingType = doc.PricingType,
+            BasePrice = doc.BasePrice,
+            FreeUnits = doc.FreeUnits,
+            PricePerExtraUnit = doc.PricePerExtraUnit,
+            ExtraCopyPrice = doc.ExtraCopyPrice,
+            JudiciaryFee = doc.JudiciaryFee,
+            ForeignAffairsFee = doc.ForeignAffairsFee,
+            IsActive = doc.IsActive
+        };
+        showForm = true;
+    }
+
+    async Task Save()
+    {
+        if (string.IsNullOrWhiteSpace(form.Name))
+            return;
+
+        if (editingItem == null)
+        {
+            // افزودن جدید
+            Db.DocumentTypes.Add(form);
+        }
+        else
+        {
+            // ویرایش
+            var existing = await Db.DocumentTypes.FindAsync(editingItem.Id);
+            if (existing != null)
+            {
+                existing.Name = form.Name;
+                existing.PricingType = form.PricingType;
+                existing.BasePrice = form.BasePrice;
+                existing.FreeUnits = form.FreeUnits;
+                existing.PricePerExtraUnit = form.PricePerExtraUnit;
+                existing.ExtraCopyPrice = form.ExtraCopyPrice;
+                existing.JudiciaryFee = form.JudiciaryFee;
+                existing.ForeignAffairsFee = form.ForeignAffairsFee;
+                existing.IsActive = form.IsActive;
+            }
+        }
+
+        await Db.SaveChangesAsync();
+        showForm = false;
+        await LoadData();
+    }
+
+    void Cancel()
+    {
+        showForm = false;
+        editingItem = null;
+    }
+
+    async Task Delete(DocumentType doc)
+    {
+        var existing = await Db.DocumentTypes.FindAsync(doc.Id);
+        if (existing != null)
+        {
+            Db.DocumentTypes.Remove(existing);
+            await Db.SaveChangesAsync();
+            await LoadData();
+        }
+    }
+}

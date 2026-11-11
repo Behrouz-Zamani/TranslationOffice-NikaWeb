@@ -1,0 +1,751 @@
+﻿@page "/translator/orders"
+
+@using System.Security.Claims
+@using System.IO
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.EntityFrameworkCore
+@using TranslationOffice.Data
+@using TranslationOffice.Models
+@using TranslationOffice.Services
+
+@attribute [Authorize]
+@rendermode InteractiveServer
+
+@inject ApplicationDbContext Db
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject NavigationManager Navigation
+@inject OrderDeliveryFileStorageService DeliveryStorage
+
+<PageTitle>سفارش‌های مترجم</PageTitle>
+
+<div class="container-fluid py-4">
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h3 class="mb-1">سفارش‌های من</h3>
+            <small class="text-muted">
+                مدیریت مدارک و ثبت وضعیت ترجمه
+            </small>
+        </div>
+
+        <button class="btn btn-outline-primary"
+                @onclick="LoadItems"
+                disabled="@isLoading">
+            <i class="bi bi-arrow-clockwise"></i>
+            بروزرسانی
+        </button>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="alert alert-danger">
+            @errorMessage
+        </div>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(successMessage))
+    {
+        <div class="alert alert-success">
+            @successMessage
+        </div>
+    }
+
+    @if (isLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary"></div>
+            <div class="mt-2">در حال دریافت اطلاعات...</div>
+        </div>
+    }
+    else if (!isTranslator)
+    {
+        <div class="alert alert-danger">
+            دسترسی شما به پنل مترجم مجاز نیست.
+        </div>
+    }
+    else
+    {
+        <div class="row g-3 mb-4">
+
+            <div class="col-md-3">
+                <div class="card shadow-sm border-0">
+                    <div class="card-body">
+                        <div class="text-muted">کل مدارک</div>
+                        <h3 class="mb-0">@items.Count</h3>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-3">
+                <div class="card shadow-sm border-0">
+                    <div class="card-body">
+                        <div class="text-muted">در انتظار شروع</div>
+                        <h3 class="mb-0 text-secondary">
+                            @items.Count(x => x.Status == "Pending")
+                        </h3>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-3">
+                <div class="card shadow-sm border-0">
+                    <div class="card-body">
+                        <div class="text-muted">در حال ترجمه</div>
+                        <h3 class="mb-0 text-primary">
+                            @items.Count(x => x.Status == "InProgress")
+                        </h3>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-3">
+                <div class="card shadow-sm border-0">
+                    <div class="card-body">
+                        <div class="text-muted">تکمیل شده</div>
+                        <h3 class="mb-0 text-success">
+                            @items.Count(x => x.Status == "Completed")
+                        </h3>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        @if (items.Count == 0)
+        {
+            <div class="alert alert-info">
+                در حال حاضر هیچ مدرکی به شما اختصاص داده نشده است.
+            </div>
+        }
+        else
+        {
+            @foreach (var item in items)
+            {
+                <div class="card shadow-sm mb-4 border-0">
+
+                    <div class="card-header bg-white py-3">
+                        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+
+                            <div>
+                                <h5 class="mb-1">
+                                    @item.DocumentType.Name
+                                </h5>
+
+                                <small class="text-muted">
+                                    شماره سفارش: @item.Order.OrderNumber
+                                </small>
+                            </div>
+
+                            <div class="text-end">
+                                <span class="badge @GetStatusBadgeClass(item.Status)">
+                                    @GetStatusTitle(item.Status)
+                                </span>
+                            </div>
+
+                        </div>
+                    </div>
+
+                    <div class="card-body">
+
+                        <div class="row mb-3">
+
+                            <div class="col-md-3 mb-2">
+                                <small class="text-muted d-block">تعداد</small>
+                                <strong>@item.Quantity</strong>
+                            </div>
+
+                            <div class="col-md-3 mb-2">
+                                <small class="text-muted d-block">واحد</small>
+                                <strong>@item.Units</strong>
+                            </div>
+
+                            <div class="col-md-3 mb-2">
+                                <small class="text-muted d-block">تأیید دادگستری</small>
+                                <strong>
+                                    @(item.NeedJudiciary ? "دارد" : "ندارد")
+                                </strong>
+                            </div>
+
+                            <div class="col-md-3 mb-2">
+                                <small class="text-muted d-block">
+                                    تأیید وزارت امور خارجه
+                                </small>
+                                <strong>
+                                    @(item.NeedForeignAffairs ? "دارد" : "ندارد")
+                                </strong>
+                            </div>
+
+                        </div>
+
+                        <hr />
+
+                        <h6 class="mb-3">
+                            <i class="bi bi-file-earmark-text"></i>
+                            مدارک ارسالی مشتری
+                        </h6>
+
+                        @if (item.Documents != null && item.Documents.Any())
+                        {
+                            <div class="list-group mb-3">
+
+                                @foreach (var document in item.Documents)
+                                {
+                                    <div class="list-group-item d-flex justify-content-between align-items-center">
+
+                                        <span>
+                                            <i class="bi bi-file-earmark-pdf text-danger"></i>
+                                            @document.OriginalFileName
+                                        </span>
+
+                                        <a href="@($"/api/documents/{document.Id}/download")"
+                                           target="_blank"
+                                           class="btn btn-sm btn-outline-primary">
+                                            دانلود
+                                        </a>
+
+                                    </div>
+                                }
+
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="text-muted small mb-3">
+                                مدرکی برای این مورد ثبت نشده است.
+                            </div>
+                        }
+
+                        <hr />
+
+                        <h6 class="mb-3">
+                            <i class="bi bi-file-earmark-check"></i>
+                            فایل‌های ترجمه‌شده
+                        </h6>
+
+                        @if (item.DeliveryFiles != null && item.DeliveryFiles.Any())
+                        {
+                            <div class="list-group mb-3">
+
+                                @foreach (var delivery in item.DeliveryFiles)
+                                {
+                                    <div class="list-group-item d-flex flex-wrap justify-content-between align-items-center gap-2">
+
+                                        <div>
+                                            <i class="bi bi-file-earmark-check text-success"></i>
+                                            @delivery.OriginalFileName
+
+                                            <small class="text-muted d-block">
+                                                @FormatFileSize(delivery.FileSize)
+                                                -
+                                                @delivery.UploadedAt.ToString("yyyy/MM/dd HH:mm")
+                                            </small>
+                                        </div>
+
+                                        <a href="@($"/api/delivery-files/{delivery.Id}/download")"
+                                           target="_blank"
+                                           class="btn btn-sm btn-outline-success">
+                                            دانلود فایل
+                                        </a>
+
+                                    </div>
+                                }
+
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="alert alert-warning py-2">
+                                هنوز فایل ترجمه‌شده‌ای بارگذاری نشده است.
+                            </div>
+                        }
+
+                        <hr />
+
+                        @if (item.Status == "Completed")
+                        {
+                            <div class="alert alert-success mb-0">
+                                <i class="bi bi-lock-fill"></i>
+                                ترجمه این مدرک تکمیل شده است و وضعیت آن قفل شده است.
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="row g-3">
+
+                                <div class="col-md-6">
+
+                                    <label class="form-label">
+                                        بارگذاری فایل ترجمه‌شده
+                                    </label>
+
+                                    <InputFile OnChange="@(e => UploadDeliveryFiles(item.Id, e))"
+                                               multiple
+                                               accept=".pdf,.jpg,.jpeg,.png"
+                                               class="form-control"
+                                               disabled="@(isUploading || isSaving)" />
+
+                                    <small class="text-muted">
+                                        فرمت‌های مجاز: PDF، JPG، JPEG و PNG
+                                        <br />
+                                        حداکثر حجم هر فایل: ۱۰ مگابایت
+                                    </small>
+
+                                </div>
+
+                                <div class="col-md-4">
+
+                                    <label class="form-label">
+                                        وضعیت ترجمه
+                                    </label>
+
+                                    <select class="form-select"
+                                            value="@GetSelectedStatus(item)"
+                                            @onchange="@(e => OnStatusChanged(item.Id, e.Value?.ToString()))"
+                                            disabled="@(isSaving || isUploading)">
+
+                                        <option value="Pending">در انتظار شروع</option>
+                                        <option value="InProgress">در حال ترجمه</option>
+                                        <option value="Completed">تکمیل شده</option>
+
+                                    </select>
+
+                                </div>
+
+                                <div class="col-md-2 d-flex align-items-end">
+
+                                    <button class="btn btn-primary w-100"
+                                            @onclick="() => SaveItemStatus(item.Id, GetSelectedStatus(item))"
+                                            disabled="@(isSaving || isUploading)">
+
+                                        @if (isSaving)
+                                        {
+                                            <span class="spinner-border spinner-border-sm me-1"></span>
+                                            <span>در حال ذخیره</span>
+                                        }
+                                        else
+                                        {
+                                            <i class="bi bi-save"></i>
+                                            <span>ذخیره وضعیت</span>
+                                        }
+
+                                    </button>
+
+                                </div>
+
+                            </div>
+                        }
+
+                    </div>
+                </div>
+            }
+        }
+    }
+
+</div>
+
+@code {
+
+    private const long MaxFileSize = 10 * 1024 * 1024;
+
+    private static readonly HashSet<string> AllowedStatuses =
+        new(StringComparer.Ordinal)
+        {
+            "Pending",
+            "InProgress",
+            "Completed"
+        };
+
+    private static readonly HashSet<string> AllowedExtensions =
+        new(StringComparer.OrdinalIgnoreCase)
+        {
+            ".pdf",
+            ".jpg",
+            ".jpeg",
+            ".png"
+        };
+
+    private List<OrderItem> items = new();
+
+    private Dictionary<int, string> selectedStatuses = new();
+
+    private string? currentUserId;
+
+    private bool isTranslator;
+    private bool isLoading = true;
+    private bool isSaving;
+    private bool isUploading;
+
+    private string? errorMessage;
+    private string? successMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var authState =
+                await AuthenticationStateProvider.GetAuthenticationStateAsync();
+
+            var user = authState.User;
+
+            currentUserId =
+                user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+            if (string.IsNullOrWhiteSpace(currentUserId))
+            {
+                Navigation.NavigateTo("/", true);
+                return;
+            }
+
+            isTranslator = await Db.Users
+                .AsNoTracking()
+                .AnyAsync(x =>
+                    x.Id == currentUserId &&
+                    x.Role == "Translator");
+
+            if (!isTranslator)
+            {
+                Navigation.NavigateTo("/", true);
+                return;
+            }
+
+            await LoadItems();
+        }
+        catch (Exception ex)
+        {
+            errorMessage =
+                $"خطا در بارگذاری اطلاعات: {ex.GetBaseException().Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task LoadItems()
+    {
+        if (string.IsNullOrWhiteSpace(currentUserId))
+            return;
+
+        items = await Db.OrderItems
+            .AsNoTracking()
+            .Where(x => x.TranslatorId == currentUserId)
+            .Include(x => x.Order)
+            .Include(x => x.DocumentType)
+            .Include(x => x.Documents)
+            .Include(x => x.DeliveryFiles)
+            .OrderByDescending(x => x.Order.CreatedAt)
+            .ToListAsync();
+
+        selectedStatuses = items.ToDictionary(
+            x => x.Id,
+            x => x.Status
+        );
+    }
+
+    private string GetSelectedStatus(OrderItem item)
+    {
+        return selectedStatuses.TryGetValue(item.Id, out var status)
+            ? status
+            : item.Status;
+    }
+
+    private void OnStatusChanged(int itemId, string? status)
+    {
+        if (string.IsNullOrWhiteSpace(status))
+            return;
+
+        if (!AllowedStatuses.Contains(status))
+            return;
+
+        selectedStatuses[itemId] = status;
+    }
+
+    private async Task SaveItemStatus(int itemId, string newStatus)
+    {
+        if (isSaving || isUploading)
+            return;
+
+        isSaving = true;
+        errorMessage = null;
+        successMessage = null;
+
+        try
+        {
+            if (string.IsNullOrWhiteSpace(currentUserId))
+                throw new Exception("کاربر واردشده معتبر نیست.");
+
+            var currentTranslatorIsActive = await Db.Users
+                .AsNoTracking()
+                .AnyAsync(x =>
+                    x.Id == currentUserId &&
+                    x.Role == "Translator");
+
+            if (!currentTranslatorIsActive)
+            {
+                Navigation.NavigateTo("/", true);
+                return;
+            }
+
+            if (!AllowedStatuses.Contains(newStatus))
+                throw new Exception("وضعیت انتخاب‌شده معتبر نیست.");
+
+            var item = await Db.OrderItems
+                .FirstOrDefaultAsync(x =>
+                    x.Id == itemId &&
+                    x.TranslatorId == currentUserId);
+
+            if (item == null)
+                throw new Exception("مدرک موردنظر پیدا نشد یا به شما اختصاص ندارد.");
+
+            if (item.Status == "Completed")
+                throw new Exception("این مدرک قبلاً تکمیل شده و امکان تغییر وضعیت ندارد.");
+
+            if (newStatus == "Completed")
+            {
+                var hasDeliveryFile = await Db.OrderDeliveryFiles
+                    .AnyAsync(x => x.OrderItemId == itemId);
+
+                if (!hasDeliveryFile)
+                {
+                    throw new Exception(
+                        "برای تکمیل ترجمه، ابتدا حداقل یک فایل ترجمه‌شده بارگذاری کنید.");
+                }
+            }
+
+            item.Status = newStatus;
+
+            await Db.SaveChangesAsync();
+
+            await UpdateOrderProgressStatusAsync(item.OrderId);
+
+            successMessage =
+                "وضعیت ترجمه و وضعیت پیشرفت سفارش با موفقیت ذخیره شد.";
+
+            await LoadItems();
+        }
+        catch (Exception ex)
+        {
+            errorMessage =
+                $"خطا در ذخیره وضعیت: {ex.GetBaseException().Message}";
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    // این متد فقط ProgressStatus را تغییر می‌دهد.
+    // Status مربوط به پرداخت است و نباید توسط مترجم تغییر کند.
+    private async Task UpdateOrderProgressStatusAsync(int orderId)
+    {
+        var order = await Db.Orders
+            .Include(x => x.Items)
+            .FirstOrDefaultAsync(x => x.Id == orderId);
+
+        if (order == null)
+            return;
+
+        // سفارش لغوشده از نظر پیشرفت دوباره فعال نمی‌شود.
+        if (order.ProgressStatus == "Cancelled")
+            return;
+
+        if (!order.Items.Any())
+            return;
+
+        if (order.Items.All(x => x.Status == "Completed"))
+        {
+            order.ProgressStatus = "Completed";
+        }
+        else if (order.Items.Any(x =>
+                     x.Status == "InProgress" ||
+                     x.Status == "Completed"))
+        {
+            order.ProgressStatus = "InProgress";
+        }
+        else
+        {
+            order.ProgressStatus = "Pending";
+        }
+
+        await Db.SaveChangesAsync();
+    }
+
+    private async Task UploadDeliveryFiles(
+        int orderItemId,
+        InputFileChangeEventArgs e)
+    {
+        if (isUploading || isSaving)
+            return;
+
+        isUploading = true;
+        errorMessage = null;
+        successMessage = null;
+
+        var savedFiles = new List<string>();
+
+        try
+        {
+            if (string.IsNullOrWhiteSpace(currentUserId))
+                throw new Exception("کاربر معتبر نیست.");
+
+            var translatorIsActive = await Db.Users
+                .AsNoTracking()
+                .AnyAsync(x =>
+                    x.Id == currentUserId &&
+                    x.Role == "Translator");
+
+            if (!translatorIsActive)
+            {
+                Navigation.NavigateTo("/", true);
+                return;
+            }
+
+            var item = await Db.OrderItems
+                .FirstOrDefaultAsync(x =>
+                    x.Id == orderItemId &&
+                    x.TranslatorId == currentUserId);
+
+            if (item == null)
+                throw new Exception("مدرک موردنظر پیدا نشد.");
+
+            if (item.Status == "Completed")
+                throw new Exception("مدرک تکمیل‌شده قابل ویرایش نیست.");
+
+            var files = e.GetMultipleFiles(10);
+
+            if (files.Count == 0)
+                throw new Exception("فایلی انتخاب نشده است.");
+
+            await using var transaction =
+                await Db.Database.BeginTransactionAsync();
+
+            foreach (var file in files)
+            {
+                var extension = Path.GetExtension(file.Name);
+
+                if (!AllowedExtensions.Contains(extension))
+                {
+                    throw new Exception(
+                        $"فرمت فایل {file.Name} مجاز نیست.");
+                }
+
+                if (file.Size <= 0 || file.Size > MaxFileSize)
+                {
+                    throw new Exception(
+                        $"حجم فایل {file.Name} باید کمتر از ۱۰ مگابایت باشد.");
+                }
+
+                byte[] content;
+
+                await using (var stream =
+                    file.OpenReadStream(MaxFileSize))
+                {
+                    using var memoryStream = new MemoryStream();
+
+                    await stream.CopyToAsync(memoryStream);
+
+                    content = memoryStream.ToArray();
+                }
+
+                var storedFileName = await DeliveryStorage.SaveAsync(
+                    file.Name,
+                    content
+                );
+
+                savedFiles.Add(storedFileName);
+
+                var deliveryFile = new OrderDeliveryFile
+                {
+                    OrderId = item.OrderId,
+                    OrderItemId = item.Id,
+                    TranslatorId = currentUserId,
+                    OriginalFileName = Path.GetFileName(file.Name),
+                    StoredFileName = storedFileName,
+                    ContentType = GetContentType(extension),
+                    FileSize = file.Size,
+                    UploadedAt = DateTime.UtcNow
+                };
+
+                Db.OrderDeliveryFiles.Add(deliveryFile);
+            }
+
+            await Db.SaveChangesAsync();
+
+            await transaction.CommitAsync();
+
+            successMessage = "فایل‌های ترجمه‌شده با موفقیت بارگذاری شدند.";
+
+            await LoadItems();
+        }
+        catch (Exception ex)
+        {
+            foreach (var storedFileName in savedFiles)
+            {
+                try
+                {
+                    await DeliveryStorage.DeleteAsync(storedFileName);
+                }
+                catch
+                {
+                    // خطای حذف فایل جانبی نباید خطای اصلی را بپوشاند.
+                }
+            }
+
+            errorMessage =
+                $"خطا در بارگذاری فایل: {ex.GetBaseException().Message}";
+        }
+        finally
+        {
+            isUploading = false;
+        }
+    }
+
+    private static string GetContentType(string extension)
+    {
+        return extension.ToLowerInvariant() switch
+        {
+            ".pdf" => "application/pdf",
+            ".jpg" => "image/jpeg",
+            ".jpeg" => "image/jpeg",
+            ".png" => "image/png",
+            _ => "application/octet-stream"
+        };
+    }
+
+    private static string GetStatusTitle(string? status)
+    {
+        return status switch
+        {
+            "Pending" => "در انتظار شروع",
+            "InProgress" => "در حال ترجمه",
+            "Completed" => "تکمیل شده",
+            "Cancelled" => "لغو شده",
+            _ => status ?? "نامشخص"
+        };
+    }
+
+    private static string GetStatusBadgeClass(string? status)
+    {
+        return status switch
+        {
+            "Pending" => "bg-secondary",
+            "InProgress" => "bg-primary",
+            "Completed" => "bg-success",
+            "Cancelled" => "bg-danger",
+            _ => "bg-warning text-dark"
+        };
+    }
+
+    private static string FormatFileSize(long bytes)
+    {
+        if (bytes < 1024)
+            return $"{bytes} بایت";
+
+        if (bytes < 1024 * 1024)
+            return $"{bytes / 1024.0:N1} کیلوبایت";
+
+        return $"{bytes / (1024.0 * 1024.0):N1} مگابایت";
+    }
+}

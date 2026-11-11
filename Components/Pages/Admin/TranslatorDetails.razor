@@ -1,0 +1,261 @@
+﻿@page "/admin/translators/details/{TranslatorId}"
+
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.EntityFrameworkCore
+@using TranslationOffice.Data
+@using TranslationOffice.Models
+
+@attribute [Authorize]
+@rendermode InteractiveServer
+
+@inject ApplicationDbContext Db
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject NavigationManager Navigation
+
+<PageTitle>جزئیات مترجم</PageTitle>
+
+<div class="container py-4">
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h3>جزئیات عملکرد مترجم</h3>
+
+        <a href="/admin/translators" class="btn btn-outline-secondary">
+            بازگشت به فهرست مترجمان
+        </a>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary"></div>
+            <p class="mt-2">در حال دریافت اطلاعات...</p>
+        </div>
+    }
+    else if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="alert alert-danger">@errorMessage</div>
+    }
+    else if (translator != null)
+    {
+        <div class="card shadow-sm mb-4">
+            <div class="card-body">
+                <div class="d-flex justify-content-between flex-wrap gap-3">
+
+                    <div>
+                        <h4>@translator.FullName</h4>
+                        <div class="text-muted" dir="ltr">
+                            @translator.PhoneNumber
+                        </div>
+                    </div>
+
+                    <div>
+                        @if (translator.Role == "Translator")
+                        {
+                            <span class="badge bg-success">فعال</span>
+                        }
+                        else
+                        {
+                            <span class="badge bg-secondary">غیرفعال</span>
+                        }
+                    </div>
+
+                </div>
+            </div>
+        </div>
+
+        <div class="row g-3 mb-4">
+
+            <div class="col-md-4">
+                <div class="card shadow-sm h-100">
+                    <div class="card-body text-center">
+                        <div class="text-muted mb-2">کل سفارش‌های ارجاع‌شده</div>
+                        <h2 class="text-primary">@totalCount</h2>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-4">
+                <div class="card shadow-sm h-100">
+                    <div class="card-body text-center">
+                        <div class="text-muted mb-2">در حال انجام</div>
+                        <h2 class="text-warning">@inProgressCount</h2>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-4">
+                <div class="card shadow-sm h-100">
+                    <div class="card-body text-center">
+                        <div class="text-muted mb-2">تکمیل‌شده</div>
+                        <h2 class="text-success">@completedCount</h2>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <div class="card shadow-sm">
+
+            <div class="card-header">
+                <strong>سوابق سفارش‌های مترجم</strong>
+            </div>
+
+            <div class="card-body">
+
+                @if (items.Count == 0)
+                {
+                    <div class="alert alert-info mb-0">
+                        هنوز سفارشی به این مترجم ارجاع نشده است.
+                    </div>
+                }
+                else
+                {
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-hover align-middle">
+
+                            <thead class="table-light">
+                                <tr>
+                                    <th>شماره سفارش</th>
+                                    <th>نوع مدرک</th>
+                                    <th>تعداد</th>
+                                    <th>تاریخ ثبت</th>
+                                    <th>وضعیت</th>
+                                    <th>جزئیات</th>
+                                </tr>
+                            </thead>
+
+                            <tbody>
+                                @foreach (var item in items)
+                                {
+                                    <tr>
+                                        <td>@item.Order.OrderNumber</td>
+
+                                        <td>@item.DocumentType.Name</td>
+
+                                        <td>@item.Quantity</td>
+
+                                        <td>
+                                            @item.Order.CreatedAt.ToString("yyyy/MM/dd")
+                                        </td>
+
+                                        <td>
+                                            @if (item.Status == "Completed")
+                                            {
+                                                <span class="badge bg-success">تکمیل‌شده</span>
+                                            }
+                                            else if (item.Status == "InProgress")
+                                            {
+                                                <span class="badge bg-warning text-dark">در حال انجام</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="badge bg-secondary">در انتظار</span>
+                                            }
+                                        </td>
+
+                                        <td>
+                                            <a href="@($"/admin/orders/{item.OrderId}")"
+                                               class="btn btn-sm btn-outline-primary">
+                                                مشاهده سفارش
+                                            </a>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+
+                        </table>
+                    </div>
+                }
+
+            </div>
+        </div>
+    }
+
+</div>
+
+@code {
+
+    [Parameter]
+    public string TranslatorId { get; set; } = "";
+
+    private ApplicationUser? translator;
+
+    private List<OrderItem> items = new();
+
+    private int totalCount;
+    private int inProgressCount;
+    private int completedCount;
+
+    private bool isLoading = true;
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            if (!await IsCurrentUserAdmin())
+            {
+                Navigation.NavigateTo("/", true);
+                return;
+            }
+
+            translator = await Db.Users
+                .AsNoTracking()
+                .FirstOrDefaultAsync(x =>
+                    x.Id == TranslatorId &&
+                    (x.Role == "Translator" ||
+                     x.Role == "InactiveTranslator"));
+
+            if (translator == null)
+            {
+                errorMessage = "مترجم موردنظر پیدا نشد.";
+                return;
+            }
+
+            items = await Db.OrderItems
+                .AsNoTracking()
+                .Where(x => x.TranslatorId == TranslatorId)
+                .Include(x => x.Order)
+                .Include(x => x.DocumentType)
+                .OrderByDescending(x => x.Order.CreatedAt)
+                .ToListAsync();
+
+            totalCount = items.Count;
+
+            inProgressCount = items.Count(x =>
+                x.Status == "InProgress");
+
+            completedCount = items.Count(x =>
+                x.Status == "Completed");
+        }
+        catch (Exception ex)
+        {
+            errorMessage =
+                $"خطا در دریافت اطلاعات: {ex.GetBaseException().Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task<bool> IsCurrentUserAdmin()
+    {
+        var authState =
+            await AuthenticationStateProvider.GetAuthenticationStateAsync();
+
+        var userId = authState.User.FindFirstValue(
+            ClaimTypes.NameIdentifier);
+
+        if (string.IsNullOrWhiteSpace(userId))
+            return false;
+
+        return await Db.Users
+            .AsNoTracking()
+            .AnyAsync(x =>
+                x.Id == userId &&
+                x.Role == "Admin");
+    }
+}

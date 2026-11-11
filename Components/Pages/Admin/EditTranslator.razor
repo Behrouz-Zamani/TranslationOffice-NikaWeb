@@ -1,0 +1,284 @@
+﻿@page "/admin/translators/edit/{TranslatorId}"
+
+@using System.ComponentModel.DataAnnotations
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+@using TranslationOffice.Data
+@using TranslationOffice.Models
+
+@attribute [Authorize]
+@rendermode InteractiveServer
+
+@inject ApplicationDbContext Db
+@inject UserManager<ApplicationUser> UserManager
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject NavigationManager Navigation
+
+<PageTitle>ویرایش مترجم</PageTitle>
+
+<div class="container py-4">
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h3>ویرایش اطلاعات مترجم</h3>
+
+        <a href="/admin/translators" class="btn btn-outline-secondary">
+            بازگشت به فهرست
+        </a>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary"></div>
+            <p class="mt-2">در حال دریافت اطلاعات...</p>
+        </div>
+    }
+    else if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="alert alert-danger">@errorMessage</div>
+    }
+    else if (model != null)
+    {
+        @if (!string.IsNullOrWhiteSpace(successMessage))
+        {
+            <div class="alert alert-success">@successMessage</div>
+        }
+
+        <div class="card shadow-sm">
+            <div class="card-header">
+                <strong>اطلاعات حساب مترجم</strong>
+            </div>
+
+            <div class="card-body">
+
+                <EditForm Model="model" OnValidSubmit="SaveTranslator">
+
+                    <DataAnnotationsValidator />
+
+                    <ValidationSummary class="text-danger" />
+
+                    <div class="row">
+
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">نام</label>
+
+                            <InputText class="form-control"
+                                       @bind-Value="model.FirstName" />
+
+                            <ValidationMessage For="@(() => model.FirstName)"
+                                               class="text-danger" />
+                        </div>
+
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">نام خانوادگی</label>
+
+                            <InputText class="form-control"
+                                       @bind-Value="model.LastName" />
+
+                            <ValidationMessage For="@(() => model.LastName)"
+                                               class="text-danger" />
+                        </div>
+
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">شماره موبایل</label>
+
+                            <InputText class="form-control"
+                                       @bind-Value="model.PhoneNumber"
+                                       dir="ltr" />
+
+                            <ValidationMessage For="@(() => model.PhoneNumber)"
+                                               class="text-danger" />
+
+                            <div class="form-text">
+                                شماره موبایل، نام کاربری ورود مترجم نیز خواهد بود.
+                            </div>
+                        </div>
+
+                    </div>
+
+                    <hr />
+
+                    <button type="submit"
+                            class="btn btn-primary"
+                            disabled="@isSaving">
+
+                        @(isSaving ? "در حال ذخیره..." : "ذخیره تغییرات")
+
+                    </button>
+
+                    <a href="/admin/translators"
+                       class="btn btn-outline-secondary me-2">
+                        انصراف
+                    </a>
+
+                </EditForm>
+
+            </div>
+        </div>
+    }
+
+</div>
+
+@code {
+
+    [Parameter]
+    public string TranslatorId { get; set; } = "";
+
+    private TranslatorInput? model;
+
+    private bool isLoading = true;
+    private bool isSaving;
+
+    private string? errorMessage;
+    private string? successMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            if (!await IsCurrentUserAdmin())
+            {
+                Navigation.NavigateTo("/", true);
+                return;
+            }
+
+            var translator = await Db.Users
+                .AsNoTracking()
+                .FirstOrDefaultAsync(x =>
+                    x.Id == TranslatorId &&
+                    (x.Role == "Translator" ||
+                     x.Role == "InactiveTranslator"));
+
+            if (translator == null)
+            {
+                errorMessage = "مترجم موردنظر پیدا نشد.";
+                return;
+            }
+
+            model = new TranslatorInput
+            {
+                FirstName = translator.FirstName,
+                LastName = translator.LastName,
+                PhoneNumber = translator.PhoneNumber ?? translator.UserName ?? ""
+            };
+        }
+        catch (Exception ex)
+        {
+            errorMessage =
+                $"خطا در دریافت اطلاعات: {ex.GetBaseException().Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task SaveTranslator()
+    {
+        if (isSaving || model == null)
+            return;
+
+        isSaving = true;
+        errorMessage = null;
+        successMessage = null;
+
+        try
+        {
+            if (!await IsCurrentUserAdmin())
+            {
+                Navigation.NavigateTo("/", true);
+                return;
+            }
+
+            var translator = await UserManager.FindByIdAsync(TranslatorId);
+
+            if (translator == null ||
+                (translator.Role != "Translator" &&
+                 translator.Role != "InactiveTranslator"))
+            {
+                throw new InvalidOperationException(
+                    "مترجم موردنظر پیدا نشد.");
+            }
+
+            var newPhone = model.PhoneNumber.Trim();
+
+            // بررسی تکراری نبودن نام کاربری
+            var existingUser = await UserManager.FindByNameAsync(newPhone);
+
+            if (existingUser != null && existingUser.Id != translator.Id)
+            {
+                throw new InvalidOperationException(
+                    "این شماره موبایل قبلاً برای حساب دیگری ثبت شده است.");
+            }
+
+            translator.FirstName = model.FirstName.Trim();
+            translator.LastName = model.LastName.Trim();
+            translator.FullName =
+                $"{translator.FirstName} {translator.LastName}";
+
+            // شماره موبایل و نام کاربری همیشه یکسان می‌مانند.
+            translator.PhoneNumber = newPhone;
+            translator.UserName = newPhone;
+
+            var result = await UserManager.UpdateAsync(translator);
+
+            if (!result.Succeeded)
+            {
+                var errors = string.Join(
+                    "، ",
+                    result.Errors.Select(x => x.Description));
+
+                throw new InvalidOperationException(errors);
+            }
+
+            successMessage =
+                "اطلاعات مترجم با موفقیت به‌روزرسانی شد.";
+        }
+        catch (Exception ex)
+        {
+            errorMessage =
+                $"خطا در ذخیره اطلاعات: {ex.GetBaseException().Message}";
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private async Task<bool> IsCurrentUserAdmin()
+    {
+        var authState =
+            await AuthenticationStateProvider.GetAuthenticationStateAsync();
+
+        var userId = authState.User.FindFirstValue(
+            ClaimTypes.NameIdentifier);
+
+        if (string.IsNullOrWhiteSpace(userId))
+            return false;
+
+        return await Db.Users
+            .AsNoTracking()
+            .AnyAsync(x =>
+                x.Id == userId &&
+                x.Role == "Admin");
+    }
+
+    private class TranslatorInput
+    {
+        [Required(ErrorMessage = "نام را وارد کنید.")]
+        [StringLength(100, ErrorMessage = "نام بیش از حد طولانی است.")]
+        public string FirstName { get; set; } = "";
+
+        [Required(ErrorMessage = "نام خانوادگی را وارد کنید.")]
+        [StringLength(100, ErrorMessage = "نام خانوادگی بیش از حد طولانی است.")]
+        public string LastName { get; set; } = "";
+
+        [Required(ErrorMessage = "شماره موبایل را وارد کنید.")]
+        [StringLength(20, MinimumLength = 5,
+            ErrorMessage = "شماره موبایل معتبر نیست.")]
+        public string PhoneNumber { get; set; } = "";
+    }
+}

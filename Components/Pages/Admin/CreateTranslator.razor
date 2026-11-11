@@ -1,0 +1,240 @@
+﻿@page "/admin/translators/create"
+
+@using System.ComponentModel.DataAnnotations
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+@using TranslationOffice.Data
+@using TranslationOffice.Models
+
+@attribute [Authorize]
+@rendermode InteractiveServer
+
+@inject UserManager<ApplicationUser> UserManager
+@inject ApplicationDbContext Db
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject NavigationManager Navigation
+
+<PageTitle>ایجاد حساب مترجم</PageTitle>
+
+<div class="container py-4">
+
+    <div class="mb-3">
+        <a href="/admin/orders" class="btn btn-outline-secondary btn-sm">
+            بازگشت به سفارش‌ها
+        </a>
+    </div>
+
+    <div class="card shadow-sm" style="max-width:650px">
+
+        <div class="card-header">
+            <h5 class="mb-0">ایجاد حساب کاربری مترجم</h5>
+        </div>
+
+        <div class="card-body">
+
+            @if (!string.IsNullOrWhiteSpace(errorMessage))
+            {
+                <div class="alert alert-danger">@errorMessage</div>
+            }
+
+            @if (!string.IsNullOrWhiteSpace(successMessage))
+            {
+                <div class="alert alert-success">
+                    @successMessage
+                </div>
+            }
+
+            <EditForm Model="model" OnValidSubmit="CreateTranslatorAccount">
+                <DataAnnotationsValidator />
+
+                <ValidationSummary class="text-danger mb-3" />
+
+                <div class="mb-3">
+                    <label class="form-label">نام</label>
+                    <InputText class="form-control"
+                               @bind-Value="model.FirstName" />
+                    <ValidationMessage For="() => model.FirstName"
+                                       class="text-danger" />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">نام خانوادگی</label>
+                    <InputText class="form-control"
+                               @bind-Value="model.LastName" />
+                    <ValidationMessage For="() => model.LastName"
+                                       class="text-danger" />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">شماره موبایل</label>
+                    <InputText class="form-control"
+                               @bind-Value="model.Phone" />
+                    <ValidationMessage For="() => model.Phone"
+                                       class="text-danger" />
+                    <small class="text-muted">
+                        شماره موبایل، نام کاربری مترجم خواهد بود.
+                    </small>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">رمز عبور</label>
+                    <InputText type="password"
+                               class="form-control"
+                               @bind-Value="model.Password" />
+                    <ValidationMessage For="() => model.Password"
+                                       class="text-danger" />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">تکرار رمز عبور</label>
+                    <InputText type="password"
+                               class="form-control"
+                               @bind-Value="model.ConfirmPassword" />
+                    <ValidationMessage For="() => model.ConfirmPassword"
+                                       class="text-danger" />
+                </div>
+
+                <button type="submit"
+                        class="btn btn-primary"
+                        disabled="@isSaving">
+
+                    @(isSaving ? "در حال ایجاد حساب..." : "ایجاد حساب مترجم")
+                </button>
+
+            </EditForm>
+
+        </div>
+    </div>
+</div>
+
+@code {
+
+    private TranslatorInput model = new();
+
+    private bool isSaving;
+
+    private string? errorMessage;
+    private string? successMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState =
+            await AuthenticationStateProvider.GetAuthenticationStateAsync();
+
+        var userId = authState.User.FindFirstValue(
+            ClaimTypes.NameIdentifier);
+
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            Navigation.NavigateTo("/Account/Login", true);
+            return;
+        }
+
+        var currentUser = await Db.Users
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == userId);
+
+        if (currentUser == null ||
+            !string.Equals(
+                currentUser.Role,
+                "Admin",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            Navigation.NavigateTo("/", true);
+        }
+    }
+
+    private async Task CreateTranslatorAccount()
+    {
+        if (isSaving)
+            return;
+
+        isSaving = true;
+        errorMessage = null;
+        successMessage = null;
+
+        try
+        {
+            var phone = model.Phone.Trim();
+
+            var existingUser = await UserManager.FindByNameAsync(phone);
+
+            if (existingUser != null)
+            {
+                errorMessage =
+                    "این شماره موبایل قبلاً در سیستم ثبت شده است.";
+                return;
+            }
+
+            var translator = new ApplicationUser
+            {
+                UserName = phone,
+                PhoneNumber = phone,
+                PhoneNumberConfirmed = false,
+
+                FirstName = model.FirstName.Trim(),
+                LastName = model.LastName.Trim(),
+
+                FullName =
+                    $"{model.FirstName.Trim()} {model.LastName.Trim()}",
+
+                Role = "Translator"
+            };
+
+            var result = await UserManager.CreateAsync(
+                translator,
+                model.Password);
+
+            if (!result.Succeeded)
+            {
+                errorMessage = string.Join(
+                    " - ",
+                    result.Errors.Select(x => x.Description));
+
+                return;
+            }
+
+            successMessage =
+                $"حساب مترجم {translator.FullName} با موفقیت ایجاد شد.";
+
+            model = new TranslatorInput();
+        }
+        catch (Exception ex)
+        {
+            errorMessage =
+                $"خطا در ایجاد حساب: {ex.GetBaseException().Message}";
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    public class TranslatorInput
+    {
+        [Required(ErrorMessage = "نام را وارد کنید.")]
+        [StringLength(100)]
+        public string FirstName { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "نام خانوادگی را وارد کنید.")]
+        [StringLength(100)]
+        public string LastName { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "شماره موبایل را وارد کنید.")]
+        [Phone(ErrorMessage = "شماره موبایل معتبر نیست.")]
+        [StringLength(20)]
+        public string Phone { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "رمز عبور را وارد کنید.")]
+        [MinLength(6, ErrorMessage = "رمز عبور حداقل باید ۶ کاراکتر باشد.")]
+        public string Password { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "تکرار رمز عبور را وارد کنید.")]
+        [Compare(nameof(Password),
+            ErrorMessage = "رمز عبور و تکرار آن یکسان نیستند.")]
+        public string ConfirmPassword { get; set; } = string.Empty;
+    }
+}

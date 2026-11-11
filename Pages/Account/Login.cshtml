@@ -1,0 +1,164 @@
+﻿@page "/Account/Login"
+@model TranslationOffice.Pages.Account.LoginModel
+
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ورود به حساب کاربری | دارالترجمه رسمی</title>
+
+    <link rel="stylesheet" href="/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="~/app.css" asp-append-version="true" />
+</head>
+
+<body>
+
+    <div class="auth-wrapper">
+
+        <section class="auth-form-panel">
+
+            <a href="/" class="auth-logo text-decoration-none">
+                <span class="auth-logo-icon">📄</span>
+                <span>دارالترجمه رسمی</span>
+            </a>
+
+            <h1 class="auth-title">خوش برگشتید!</h1>
+
+            <p class="auth-description">
+                برای ورود به حساب کاربری خود، شماره موبایل و رمز عبورتان را وارد کنید.
+            </p>
+
+            <form method="post">
+                @Html.AntiForgeryToken()
+
+                <input type="hidden" asp-for="ReturnUrl" />
+
+                <div asp-validation-summary="ModelOnly"></div>
+
+                <div class="mb-3">
+                    <label asp-for="Phone" class="form-label">
+                        شماره موبایل
+                    </label>
+
+                    <input asp-for="Phone"
+                           class="form-control phone-input"
+                           placeholder="09123456789"
+                           dir="ltr"
+                           autocomplete="tel" />
+
+                    <span asp-validation-for="Phone" class="text-danger"></span>
+                </div>
+
+                <div class="mb-3">
+                    <label asp-for="Password" class="form-label">
+                        رمز عبور
+                    </label>
+
+                    <div class="password-wrapper">
+                        <input asp-for="Password"
+                               type="password"
+                               id="loginPassword"
+                               class="form-control"
+                               placeholder="رمز عبور خود را وارد کنید"
+                               autocomplete="current-password" />
+
+                        <button type="button"
+                                class="password-toggle"
+                                onclick="togglePassword('loginPassword', this)">
+                            نمایش
+                        </button>
+                    </div>
+
+                    <span asp-validation-for="Password" class="text-danger"></span>
+                </div>
+
+                <div class="remember-row">
+                    <div class="form-check">
+                        <input asp-for="RememberMe" class="form-check-input" />
+                        <label asp-for="RememberMe" class="form-check-label">
+                            مرا به خاطر بسپار
+                        </label>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn auth-submit">
+                    ورود به حساب کاربری
+                </button>
+
+            </form>
+
+            <div class="auth-bottom">
+                حساب کاربری ندارید؟
+                <a asp-page="/Account/Register"
+                   asp-route-returnUrl="@Model.ReturnUrl">
+                    ثبت‌نام کنید
+                </a>
+            </div>
+
+            <div class="auth-bottom mt-3">
+                <a href="/">بازگشت به صفحه اصلی</a>
+            </div>
+
+        </section>
+
+        <aside class="auth-side">
+
+            <div class="side-content">
+
+                <span class="side-badge">سامانه آنلاین ترجمه رسمی</span>
+
+                <h2>
+                    ترجمه مدارک شما،
+                    <span>با اطمینان و سهولت</span>
+                </h2>
+
+                <p>
+                    با ورود به حساب کاربری، سفارش‌های خود را مدیریت کنید،
+                    مراحل انجام ترجمه را پیگیری کنید و فایل‌های نهایی را دریافت کنید.
+                </p>
+
+                <div class="side-benefits">
+                    <div class="side-benefit">
+                        <span>✓</span>
+                        ثبت و مدیریت سفارش‌ها
+                    </div>
+
+                    <div class="side-benefit">
+                        <span>✓</span>
+                        پیگیری مراحل ترجمه
+                    </div>
+
+                    <div class="side-benefit">
+                        <span>✓</span>
+                        دسترسی به فایل‌های تحویل
+                    </div>
+                </div>
+
+            </div>
+
+        </aside>
+
+    </div>
+
+    <script>
+            function togglePassword(inputId, button) {
+                const input = document.getElementById(inputId);
+
+                if (!input) return;
+
+                if (input.type === "password") {
+                    input.type = "text";
+                    button.textContent = "مخفی";
+                } else {
+                    input.type = "password";
+                    button.textContent = "نمایش";
+                }
+            }
+    </script>
+
+</body>
+</html>

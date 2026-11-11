@@ -1,0 +1,152 @@
+﻿@inherits LayoutComponentBase
+@using Microsoft.AspNetCore.Components.Authorization
+
+<div class="app-wrapper" dir="rtl">
+
+    <nav class="navbar navbar-expand-lg navbar-dark app-navbar">
+        <div class="container">
+
+            <a class="navbar-brand fw-bold" href="/">
+                <span class="brand-icon">📄</span>
+                دارالترجمه رسمی
+            </a>
+
+            <button class="navbar-toggler"
+                    type="button"
+                    data-bs-toggle="collapse"
+                    data-bs-target="#mainNav"
+                    aria-controls="mainNav"
+                    aria-expanded="false"
+                    aria-label="نمایش منو">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+
+            <div class="collapse navbar-collapse" id="mainNav">
+
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+
+                    <li class="nav-item">
+                        <NavLink class="nav-link"
+                                 href="/"
+                                 Match="NavLinkMatch.All">
+                            صفحه اصلی
+                        </NavLink>
+                    </li>
+
+                    <li class="nav-item">
+                        <NavLink class="nav-link" href="/order/create">
+                            ثبت سفارش
+                        </NavLink>
+                    </li>
+
+                    <AuthorizeView Roles="Customer">
+                        <Authorized>
+                            <li class="nav-item">
+                                <NavLink class="nav-link" href="/account/orders">
+                                    سفارش‌های من
+                                </NavLink>
+                            </li>
+                        </Authorized>
+                    </AuthorizeView>
+
+                    <AuthorizeView Roles="Admin">
+                        <Authorized>
+                            <li class="nav-item">
+                                <NavLink class="nav-link" href="/admin/orders">
+                                    مدیریت سفارش‌ها
+                                </NavLink>
+                            </li>
+
+                            <li class="nav-item">
+                                <NavLink class="nav-link" href="/admin/documents">
+                                    مدیریت اسناد
+                                </NavLink>
+                            </li>
+
+                            <li class="nav-item">
+                                <NavLink class="nav-link" href="/admin/translators">
+                                    مدیریت مترجمان
+                                </NavLink>
+                            </li>
+                        </Authorized>
+                    </AuthorizeView>
+
+                    <AuthorizeView Roles="Translator">
+                        <Authorized>
+                            <li class="nav-item">
+                                <NavLink class="nav-link" href="/translator/orders">
+                                    پنل مترجم
+                                </NavLink>
+                            </li>
+                        </Authorized>
+                    </AuthorizeView>
+
+                </ul>
+
+                <div class="d-flex align-items-center gap-2 flex-wrap mt-3 mt-lg-0">
+
+                    <AuthorizeView>
+                        <Authorized Context="auth">
+
+                            <div class="user-welcome">
+                                <span class="user-avatar">👤</span>
+                                <span>
+                                    خوش آمدید،
+                                    <strong>@auth.User.Identity?.Name</strong>
+                                </span>
+                            </div>
+
+                            <a href="/Account/Logout"
+                               class="btn btn-outline-light btn-sm px-3">
+                                خروج
+                            </a>
+
+                        </Authorized>
+
+                        <NotAuthorized>
+
+                            <a href="/Account/Login"
+                               class="btn btn-outline-light btn-sm px-3">
+                                ورود
+                            </a>
+
+                            <a href="/Account/Register"
+                               class="btn btn-gold btn-sm px-3">
+                                ثبت‌نام
+                            </a>
+
+                        </NotAuthorized>
+                    </AuthorizeView>
+
+                    <a href="/order/create"
+                       class="btn btn-gold fw-semibold">
+                        ثبت سفارش جدید
+                    </a>
+
+                </div>
+
+            </div>
+        </div>
+    </nav>
+
+    <main class="app-main">
+        @Body
+    </main>
+
+    <footer class="app-footer">
+        <div class="container">
+            <div class="footer-content">
+                <div>
+                    <div class="footer-brand">دارالترجمه رسمی</div>
+                    <p>خدمات ترجمه رسمی، دقیق و مطمئن</p>
+                </div>
+
+                <div class="footer-copy">
+                    © تمامی حقوق متعلق به دارالترجمه رسمی است.
+                </div>
+            </div>
+        </div>
+    </footer>
+
+</div>
+

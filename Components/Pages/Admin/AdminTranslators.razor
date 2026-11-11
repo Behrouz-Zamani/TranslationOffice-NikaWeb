@@ -1,0 +1,356 @@
+﻿@page "/admin/translators"
+
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.EntityFrameworkCore
+@using TranslationOffice.Data
+@using TranslationOffice.Models
+
+@attribute [Authorize]
+@rendermode InteractiveServer
+
+@inject ApplicationDbContext Db
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject NavigationManager Navigation
+
+<PageTitle>مدیریت مترجمان</PageTitle>
+
+<div class="container py-4">
+
+    <div class="d-flex justify-content-between align-items-center flex-wrap mb-4 gap-2">
+        <h3>مدیریت مترجمان</h3>
+
+        <a href="/admin/translators/create" class="btn btn-primary">
+            <i class="bi bi-person-plus me-1"></i>
+            افزودن مترجم جدید
+        </a>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary"></div>
+            <p class="mt-2">در حال دریافت اطلاعات مترجمان...</p>
+        </div>
+    }
+    else if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="alert alert-danger">@errorMessage</div>
+    }
+    else
+    {
+        @if (!string.IsNullOrWhiteSpace(successMessage))
+        {
+            <div class="alert alert-success">@successMessage</div>
+        }
+
+        <div class="row mb-4">
+
+            <div class="col-md-4 mb-3">
+                <div class="card shadow-sm text-center">
+                    <div class="card-body">
+                        <h3>@translators.Count(x => x.IsActive)</h3>
+                        <div class="text-muted">مترجمان فعال</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-4 mb-3">
+                <div class="card shadow-sm text-center">
+                    <div class="card-body">
+                        <h3>@translators.Count(x => !x.IsActive)</h3>
+                        <div class="text-muted">مترجمان غیرفعال</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-4 mb-3">
+                <div class="card shadow-sm text-center">
+                    <div class="card-body">
+                        <h3>@translators.Sum(x => x.CompletedCount)</h3>
+                        <div class="text-muted">کل مدارک تکمیل‌شده</div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <div class="card shadow-sm">
+
+            <div class="card-header">
+                <strong>فهرست مترجمان</strong>
+            </div>
+
+            <div class="card-body">
+
+                @if (!translators.Any())
+                {
+                    <div class="alert alert-info mb-0">
+                        هنوز مترجمی ثبت نشده است.
+                    </div>
+                }
+                else
+                {
+                    <div class="table-responsive">
+
+                        <table class="table table-hover align-middle">
+
+                            <thead>
+                                <tr>
+                                    <th>نام مترجم</th>
+                                    <th>شماره موبایل</th>
+                                    <th>کل مدارک</th>
+                                    <th>در حال انجام</th>
+                                    <th>تکمیل‌شده</th>
+                                    <th>وضعیت حساب</th>
+                                    <th>عملیات</th>
+                                </tr>
+                            </thead>
+
+                            <tbody>
+
+                                @foreach (var translator in translators)
+                                {
+                                    <tr>
+
+                                        <td>
+                                            <strong>@translator.FullName</strong>
+                                        </td>
+
+                                        <td dir="ltr">
+                                            @translator.PhoneNumber
+                                        </td>
+
+                                        <td>
+                                            @translator.TotalCount
+                                        </td>
+
+                                        <td>
+                                            @translator.InProgressCount
+                                        </td>
+
+                                        <td>
+                                            @translator.CompletedCount
+                                        </td>
+
+                                        <td>
+                                            @if (translator.IsActive)
+                                            {
+                                                <span class="badge bg-success">
+                                                    فعال
+                                                </span>
+                                            }
+                                            else
+                                            {
+                                                <span class="badge bg-secondary">
+                                                    غیرفعال
+                                                </span>
+                                            }
+                                        </td>
+
+                                       
+                                        <td class="text-nowrap">
+
+                                            <a href="@($"/admin/translators/details/{translator.Id}")"
+                                               class="btn btn-sm btn-outline-info mb-1">
+                                                جزئیات
+                                            </a>
+
+                                            <a href="@($"/admin/translators/edit/{translator.Id}")"
+                                               class="btn btn-sm btn-outline-primary mb-1">
+                                                ویرایش
+                                            </a>
+
+                                            <button class="btn btn-sm @(translator.IsActive ? "btn-outline-danger" : "btn-outline-success") mb-1"
+                                                    @onclick="() => ChangeTranslatorStatus(translator.Id)"
+                                                    disabled="@isSaving">
+                                                @(translator.IsActive ? "غیرفعال کردن" : "فعال کردن")
+                                            </button>
+
+                                        </td>
+
+
+                                    </tr>
+                                }
+
+                            </tbody>
+
+                        </table>
+
+                    </div>
+                }
+
+            </div>
+        </div>
+    }
+
+</div>
+
+@code {
+
+    private List<TranslatorViewModel> translators = new();
+
+    private bool isLoading = true;
+    private bool isSaving;
+
+    private string? errorMessage;
+    private string? successMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var authState =
+                await AuthenticationStateProvider.GetAuthenticationStateAsync();
+
+            var userId = authState.User.FindFirstValue(
+                ClaimTypes.NameIdentifier);
+
+            if (string.IsNullOrWhiteSpace(userId))
+            {
+                Navigation.NavigateTo("/Account/Login", true);
+                return;
+            }
+
+            var currentUser = await Db.Users
+                .AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == userId);
+
+            if (currentUser == null ||
+                !string.Equals(
+                    currentUser.Role,
+                    "Admin",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                Navigation.NavigateTo("/", true);
+                return;
+            }
+
+            await LoadTranslators();
+        }
+        catch (Exception ex)
+        {
+            errorMessage =
+                $"خطا در دریافت اطلاعات: {ex.GetBaseException().Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task LoadTranslators()
+    {
+        var users = await Db.Users
+            .AsNoTracking()
+            .Where(x =>
+                x.Role == "Translator" ||
+                x.Role == "InactiveTranslator")
+            .OrderBy(x => x.FirstName)
+            .ThenBy(x => x.LastName)
+            .ToListAsync();
+
+        var statistics = await Db.OrderItems
+            .AsNoTracking()
+            .Where(x => x.TranslatorId != null)
+            .GroupBy(x => x.TranslatorId)
+            .Select(g => new
+            {
+                TranslatorId = g.Key,
+                TotalCount = g.Count(),
+                InProgressCount = g.Count(x => x.Status == "InProgress"),
+                CompletedCount = g.Count(x => x.Status == "Completed")
+            })
+            .ToListAsync();
+
+        translators = users.Select(user =>
+        {
+            var stat = statistics.FirstOrDefault(
+                x => x.TranslatorId == user.Id);
+
+            return new TranslatorViewModel
+            {
+                Id = user.Id,
+                FullName = string.IsNullOrWhiteSpace(user.FullName)
+                    ? $"{user.FirstName} {user.LastName}".Trim()
+                    : user.FullName,
+                PhoneNumber = user.PhoneNumber ?? user.UserName ?? "",
+                IsActive = user.Role == "Translator",
+                TotalCount = stat?.TotalCount ?? 0,
+                InProgressCount = stat?.InProgressCount ?? 0,
+                CompletedCount = stat?.CompletedCount ?? 0
+            };
+
+        }).ToList();
+    }
+
+    private async Task ChangeTranslatorStatus(string translatorId)
+    {
+        if (isSaving)
+            return;
+
+        isSaving = true;
+        errorMessage = null;
+        successMessage = null;
+
+        try
+        {
+            var translator = await Db.Users
+                .FirstOrDefaultAsync(x => x.Id == translatorId);
+
+            if (translator == null ||
+                (translator.Role != "Translator" &&
+                 translator.Role != "InactiveTranslator"))
+            {
+                throw new InvalidOperationException(
+                    "مترجم موردنظر پیدا نشد.");
+            }
+
+            if (translator.Role == "Translator")
+            {
+                translator.Role = "InactiveTranslator";
+
+                successMessage =
+                    "حساب مترجم با موفقیت غیرفعال شد.";
+            }
+            else
+            {
+                translator.Role = "Translator";
+
+                successMessage =
+                    "حساب مترجم با موفقیت فعال شد.";
+            }
+
+            await Db.SaveChangesAsync();
+
+            await LoadTranslators();
+        }
+        catch (Exception ex)
+        {
+            errorMessage =
+                $"خطا در تغییر وضعیت مترجم: {ex.GetBaseException().Message}";
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private class TranslatorViewModel
+    {
+        public string Id { get; set; } = "";
+
+        public string FullName { get; set; } = "";
+
+        public string PhoneNumber { get; set; } = "";
+
+        public bool IsActive { get; set; }
+
+        public int TotalCount { get; set; }
+
+        public int InProgressCount { get; set; }
+
+        public int CompletedCount { get; set; }
+    }
+}

@@ -1,0 +1,929 @@
+﻿@page "/admin/orders/{OrderId:int}"
+
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.EntityFrameworkCore
+@using TranslationOffice.Data
+@using TranslationOffice.Models
+
+@attribute [Authorize]
+@rendermode InteractiveServer
+
+@inject ApplicationDbContext Db
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject NavigationManager Navigation
+
+<PageTitle>جزئیات سفارش</PageTitle>
+
+<div class="mb-3">
+    <a href="/admin/orders" class="btn btn-outline-secondary btn-sm">
+        بازگشت به سفارش‌ها
+    </a>
+</div>
+
+@if (isLoading)
+{
+    <div class="text-center py-5">
+        <div class="spinner-border text-primary"></div>
+        <p class="mt-2">در حال بارگذاری...</p>
+    </div>
+}
+else if (!string.IsNullOrWhiteSpace(errorMessage) && order == null)
+{
+    <div class="alert alert-danger">@errorMessage</div>
+}
+else if (order != null)
+{
+    <h3 class="mb-4">مدیریت سفارش @order.OrderNumber</h3>
+
+    @if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="alert alert-danger">@errorMessage</div>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(successMessage))
+    {
+        <div class="alert alert-success">@successMessage</div>
+    }
+
+    <!-- اطلاعات سفارش و مشتری -->
+    <div class="card mb-4">
+        <div class="card-header">اطلاعات سفارش و مشتری</div>
+
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <strong>شماره سفارش:</strong>
+                    @order.OrderNumber
+                </div>
+
+                <div class="col-md-6 mb-3">
+                    <strong>تاریخ ثبت:</strong>
+                    @order.CreatedAt.ToString("yyyy/MM/dd HH:mm")
+                </div>
+
+                <div class="col-md-6 mb-3">
+                    <strong>نام مشتری:</strong>
+                    @(customer?.FullName ?? "مهمان")
+                </div>
+
+                <div class="col-md-6 mb-3">
+                    <strong>شماره موبایل:</strong>
+                    @(customer?.PhoneNumber ?? "ثبت نشده")
+                </div>
+
+                <div class="col-md-6 mb-3">
+                    <strong>مبلغ سفارش:</strong>
+                    @order.TotalPrice.ToString("N0") تومان
+                </div>
+
+                <div class="col-md-6 mb-3">
+                    <strong>تعداد مدارک:</strong>
+                    @order.Items.Count
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- وضعیت مالی و پرداخت‌ها -->
+    <div class="card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <strong>وضعیت مالی و پرداخت‌ها</strong>
+
+            <span class="badge @(remainingAmount == 0 && paidAmount > 0 ? "bg-success" : "bg-warning text-dark")">
+                @(remainingAmount == 0 && paidAmount > 0 ? "تسویه شده" : "دارای مانده پرداخت")
+            </span>
+        </div>
+
+        <div class="card-body">
+
+            <div class="row text-center">
+
+                <div class="col-md-3 mb-3">
+                    <div class="border rounded p-3 h-100">
+                        <div class="text-muted small">مبلغ کل سفارش</div>
+                        <strong class="fs-5">
+                            @order.TotalPrice.ToString("N0")
+                        </strong>
+                        <div class="small">تومان</div>
+                    </div>
+                </div>
+
+                <div class="col-md-3 mb-3">
+                    <div class="border rounded p-3 h-100">
+                        <div class="text-muted small">مبلغ پرداخت‌شده</div>
+                        <strong class="fs-5 text-success">
+                            @paidAmount.ToString("N0")
+                        </strong>
+                        <div class="small">تومان</div>
+                    </div>
+                </div>
+
+                <div class="col-md-3 mb-3">
+                    <div class="border rounded p-3 h-100">
+                        <div class="text-muted small">مبلغ در انتظار</div>
+                        <strong class="fs-5 text-warning">
+                            @pendingAmount.ToString("N0")
+                        </strong>
+                        <div class="small">تومان</div>
+                    </div>
+                </div>
+
+                <div class="col-md-3 mb-3">
+                    <div class="border rounded p-3 h-100">
+                        <div class="text-muted small">مانده قابل پرداخت</div>
+                        <strong class="fs-5 text-danger">
+                            @remainingAmount.ToString("N0")
+                        </strong>
+                        <div class="small">تومان</div>
+                    </div>
+                </div>
+
+            </div>
+
+            @if (failedAmount > 0)
+            {
+                <div class="alert alert-danger mt-2">
+                    مجموع تراکنش‌های ناموفق:
+                    <strong>@failedAmount.ToString("N0") تومان</strong>
+                </div>
+            }
+
+            <hr />
+
+            <h6 class="mb-3">تاریخچه تراکنش‌ها</h6>
+
+            @if (order.Payments.Any())
+            {
+                <div class="table-responsive">
+                    <table class="table table-bordered table-hover align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th>تاریخ ثبت</th>
+                                <th>مبلغ</th>
+                                <th>درگاه</th>
+                                <th>وضعیت</th>
+                                <th>شناسه درگاه</th>
+                                <th>شماره پیگیری</th>
+                                <th>توضیحات</th>
+                            </tr>
+                        </thead>
+
+                        <tbody>
+                            @foreach (var payment in order.Payments.OrderByDescending(x => x.CreatedAt))
+                            {
+                                <tr>
+                                    <td>
+                                        @payment.CreatedAt.ToString("yyyy/MM/dd HH:mm")
+                                    </td>
+
+                                    <td>
+                                        @payment.AmountToman.ToString("N0") تومان
+                                    </td>
+
+                                    <td>@payment.Gateway</td>
+
+                                    <td>
+                                        <span class="badge @GetPaymentStatusClass(payment.Status)">
+                                            @GetPaymentStatusTitle(payment.Status)
+                                        </span>
+                                    </td>
+
+                                    <td>@(payment.Authority ?? "-")</td>
+
+                                    <td>@(payment.ReferenceId ?? "-")</td>
+
+                                    <td>
+                                        @if (payment.Status == PaymentStatus.Paid)
+                                        {
+                                            <span class="text-success">
+                                                پرداخت موفق
+
+                                                @if (payment.VerifiedAt.HasValue)
+                                                {
+                                                    <br />
+                                                    <small>
+                                                        زمان تأیید:
+                                                        @payment.VerifiedAt.Value.ToString("yyyy/MM/dd HH:mm")
+                                                    </small>
+                                                }
+                                            </span>
+                                        }
+                                        else if (payment.Status == PaymentStatus.Failed)
+                                        {
+                                            <span class="text-danger">
+                                                @(payment.FailureReason ?? "پرداخت ناموفق")
+                                            </span>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">
+                                                در انتظار تعیین نتیجه
+                                            </span>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+            else
+            {
+                <div class="alert alert-secondary mb-0">
+                    هنوز هیچ تراکنشی برای این سفارش ثبت نشده است.
+                </div>
+            }
+
+            <div class="alert alert-info mt-3 mb-0">
+                وضعیت پرداخت فقط از طریق تأیید معتبر درگاه پرداخت تغییر می‌کند.
+                امکان ثبت دستی پرداخت موفق از پنل مدیریت وجود ندارد.
+            </div>
+
+        </div>
+    </div>
+
+    <!-- مدیریت سفارش -->
+    <div class="card mb-4">
+        <div class="card-header">مدیریت سفارش</div>
+
+        <div class="card-body">
+
+            <div class="mb-3">
+                <label class="form-label">وضعیت فعلی سفارش</label>
+
+                <div>
+                    <span class="badge @GetOrderStatusClass(order.Status)">
+                        @GetOrderStatusTitle(order.Status)
+                    </span>
+                </div>
+
+                <small class="text-muted d-block mt-2">
+                    وضعیت پرداخت و وضعیت کلی سفارش از این بخش قابل تغییر نیست.
+                    پیشرفت ترجمه از وضعیت مدارک محاسبه می‌شود.
+                </small>
+            </div>
+
+            <hr />
+
+            <div class="mb-3">
+                <label class="form-label">یادداشت داخلی مدیر</label>
+
+                <textarea class="form-control"
+                          rows="4"
+                          maxlength="2000"
+                          @bind="order.Notes">
+                </textarea>
+
+                <small class="text-muted">
+                    این یادداشت فقط برای مدیریت داخلی است.
+                </small>
+            </div>
+
+            <button class="btn btn-primary"
+                    @onclick="SaveOrder"
+                    disabled="@isSaving">
+                @(isSaving ? "در حال ذخیره..." : "ذخیره یادداشت")
+            </button>
+
+        </div>
+    </div>
+
+    <h5 class="mb-3">مدارک و تخصیص مترجم</h5>
+
+    @foreach (var item in order.Items)
+    {
+        var orderedDocuments = item.Documents
+            .OrderByDescending(x => x.UploadedAt)
+            .ToList();
+
+        var orderedDeliveryFiles = item.DeliveryFiles
+            .OrderByDescending(x => x.UploadedAt)
+            .ToList();
+
+        <div class="card mb-4">
+
+            <div class="card-header d-flex justify-content-between flex-wrap">
+                <strong>@item.DocumentType.Name</strong>
+
+                <span>@item.TotalPrice.ToString("N0") تومان</span>
+            </div>
+
+            <div class="card-body">
+
+                <div class="row mb-3">
+
+                    <div class="col-md-6">
+                        تعداد نسخه: @item.Quantity
+                    </div>
+
+                    <div class="col-md-6">
+                        تعداد سطر/صفحه: @item.Units
+                    </div>
+
+                    <div class="col-md-6 mt-2">
+                        تأیید دادگستری:
+                        @(item.NeedJudiciary ? "بله" : "خیر")
+                    </div>
+
+                    <div class="col-md-6 mt-2">
+                        تأیید وزارت خارجه:
+                        @(item.NeedForeignAffairs ? "بله" : "خیر")
+                    </div>
+
+                    <div class="col-md-6 mt-2">
+                        وضعیت ترجمه:
+                        @GetItemStatusTitle(item.Status)
+                    </div>
+
+                </div>
+
+                <hr />
+
+                <!-- تخصیص مترجم -->
+                <div class="bg-light rounded p-3 mb-4">
+
+                    <label class="form-label fw-bold">
+                        تخصیص مترجم به این مدرک
+                    </label>
+
+                    <select class="form-select" @bind="item.TranslatorId">
+                        <option value="">-- بدون مترجم --</option>
+
+                        @foreach (var translator in translators)
+                        {
+                            <option value="@translator.Id">
+                                @GetTranslatorName(translator)
+                                (@translator.PhoneNumber)
+                            </option>
+                        }
+                    </select>
+
+                    @if (!string.IsNullOrWhiteSpace(item.TranslatorId))
+                    {
+                        <small class="text-success d-block mt-2">
+                            مترجم انتخاب‌شده:
+                            @GetTranslatorNameById(item.TranslatorId)
+                        </small>
+                    }
+                    else
+                    {
+                        <small class="text-muted d-block mt-2">
+                            هنوز مترجمی برای این مدرک انتخاب نشده است.
+                        </small>
+                    }
+
+                </div>
+
+                <hr />
+
+                <!-- فایل‌های تحویل مترجم -->
+                <h6 class="mb-3">
+                    فایل‌های ترجمه‌شده و تحویل مترجم
+                </h6>
+
+                @if (orderedDeliveryFiles.Any())
+                {
+                    @foreach (var delivery in orderedDeliveryFiles)
+                    {
+                        <div class="border rounded p-3 mb-3">
+
+                            <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+
+                                <div>
+                                    <strong>@delivery.OriginalFileName</strong>
+
+                                    @if (delivery.Id == orderedDeliveryFiles.First().Id)
+                                    {
+                                        <span class="badge bg-success ms-2">
+                                            آخرین نسخه
+                                        </span>
+                                    }
+                                </div>
+
+                                <span class="text-muted small">
+                                    @FormatFileSize(delivery.FileSize)
+                                </span>
+
+                            </div>
+
+                            <div class="small text-muted mt-2">
+                                مترجم:
+                                @GetDeliveryTranslatorName(delivery.TranslatorId)
+                            </div>
+
+                            <div class="small text-muted mt-1">
+                                تاریخ تحویل:
+                                @delivery.UploadedAt.ToString("yyyy/MM/dd HH:mm")
+                            </div>
+
+                            <div class="mt-3">
+                                <a href="@($"/api/delivery-files/{delivery.Id}/download")"
+                                   target="_blank"
+                                   class="btn btn-outline-success btn-sm">
+                                    <i class="bi bi-download"></i>
+                                    دانلود فایل ترجمه‌شده
+                                </a>
+                            </div>
+
+                        </div>
+                    }
+                }
+                else
+                {
+                    <div class="alert alert-secondary">
+                        مترجم هنوز فایل ترجمه‌شده‌ای برای این مدرک بارگذاری نکرده است.
+                    </div>
+                }
+
+                <hr />
+
+                <!-- فایل‌های مشتری -->
+                <h6 class="mb-3">
+                    تاریخچه فایل‌های بارگذاری‌شده توسط مشتری
+                </h6>
+
+                @if (orderedDocuments.Any())
+                {
+                    @foreach (var document in orderedDocuments)
+                    {
+                        var isLatestDocument =
+                            document.Id == orderedDocuments.First().Id;
+
+                        var isReplacement =
+                            IsReplacementVersion(item, document);
+
+                        <div class="border rounded p-3 mb-3
+                            @(isReplacement ? "border-primary border-2" : "")">
+
+                            <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+
+                                <div>
+                                    <strong>@document.OriginalFileName</strong>
+
+                                    @if (isReplacement)
+                                    {
+                                        <span class="badge bg-primary ms-2">
+                                            نسخه اصلاح‌شده جدید
+                                        </span>
+                                    }
+                                    else if (isLatestDocument)
+                                    {
+                                        <span class="badge bg-secondary ms-2">
+                                            آخرین فایل بارگذاری‌شده
+                                        </span>
+                                    }
+                                </div>
+
+                                <span class="text-muted small">
+                                    @FormatFileSize(document.FileSize)
+                                </span>
+
+                            </div>
+
+                            <div class="small text-muted mt-2">
+                                تاریخ بارگذاری:
+                                @document.UploadedAt.ToString("yyyy/MM/dd HH:mm")
+                            </div>
+
+                            <div class="mt-2">
+                                <a href="@($"/api/documents/{document.Id}/download")"
+                                   target="_blank"
+                                   class="btn btn-outline-primary btn-sm">
+                                    <i class="bi bi-download"></i>
+                                    دانلود فایل
+                                </a>
+                            </div>
+
+                            <hr />
+
+                            <div class="mt-3">
+                                <label class="form-label">
+                                    وضعیت بررسی مدرک
+                                </label>
+
+                                <select class="form-select"
+                                        @bind="document.ReviewStatus">
+                                    <option value="Pending">در انتظار بررسی</option>
+                                    <option value="Approved">تأییدشده</option>
+                                    <option value="NeedsCorrection">نیازمند اصلاح</option>
+                                </select>
+                            </div>
+
+                            <div class="mt-3">
+                                <label class="form-label">
+                                    توضیح برای مشتری
+                                </label>
+
+                                <textarea class="form-control"
+                                          rows="2"
+                                          maxlength="1000"
+                                          @bind="document.ReviewNote">
+                                </textarea>
+                            </div>
+
+                            @if (document.ReviewStatus == "NeedsCorrection")
+                            {
+                                <div class="alert alert-warning mt-3 mb-0">
+                                    این فایل نیازمند اصلاح است.
+                                    توضیحات بالا برای مشتری نمایش داده می‌شود.
+                                </div>
+                            }
+                            else if (document.ReviewStatus == "Approved")
+                            {
+                                <div class="alert alert-success mt-3 mb-0">
+                                    این فایل تأیید شده است.
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="alert alert-secondary mt-3 mb-0">
+                                    این فایل هنوز بررسی نشده است.
+                                </div>
+                            }
+
+                        </div>
+                    }
+                }
+                else
+                {
+                    <p class="text-muted">
+                        برای این مدرک هنوز فایلی بارگذاری نشده است.
+                    </p>
+                }
+
+            </div>
+        </div>
+    }
+
+    <button class="btn btn-success w-100 mb-4"
+            @onclick="SaveOrder"
+            disabled="@isSaving">
+        @(isSaving
+            ? "در حال ذخیره..."
+            : "ذخیره تغییرات، تخصیص مترجم و بررسی مدارک")
+    </button>
+}
+
+@code {
+
+    [Parameter]
+    public int OrderId { get; set; }
+
+    private Order? order;
+
+    private ApplicationUser? customer;
+
+    private List<ApplicationUser> translators = new();
+
+    private List<ApplicationUser> deliveryTranslators = new();
+
+    private string? originalOrderStatus;
+
+    private bool isLoading = true;
+
+    private bool isSaving;
+
+    private string? errorMessage;
+
+    private string? successMessage;
+
+    // محاسبات مالی
+    private decimal paidAmount =>
+        order?.Payments
+            .Where(x => x.Status == PaymentStatus.Paid)
+            .Sum(x => x.AmountToman) ?? 0m;
+
+    private decimal pendingAmount =>
+        order?.Payments
+            .Where(x => x.Status == PaymentStatus.Pending)
+            .Sum(x => x.AmountToman) ?? 0m;
+
+    private decimal failedAmount =>
+        order?.Payments
+            .Where(x => x.Status == PaymentStatus.Failed)
+            .Sum(x => x.AmountToman) ?? 0m;
+
+    private decimal remainingAmount =>
+        Math.Max(0m, (order?.TotalPrice ?? 0m) - paidAmount);
+
+    private static readonly HashSet<string> AllowedReviewStatuses =
+        new(StringComparer.Ordinal)
+        {
+            "Pending",
+            "Approved",
+            "NeedsCorrection"
+        };
+
+    private static readonly HashSet<string> AllowedItemStatuses =
+        new(StringComparer.Ordinal)
+        {
+            "Pending",
+            "InProgress",
+            "Completed"
+        };
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var authState =
+                await AuthenticationStateProvider.GetAuthenticationStateAsync();
+
+            var userId = authState.User.FindFirstValue(
+                ClaimTypes.NameIdentifier);
+
+            if (string.IsNullOrWhiteSpace(userId))
+            {
+                Navigation.NavigateTo("/Account/Login", true);
+                return;
+            }
+
+            var currentUser = await Db.Users
+                .AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == userId);
+
+            if (currentUser == null ||
+                !string.Equals(
+                    currentUser.Role,
+                    "Admin",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                Navigation.NavigateTo("/", true);
+                return;
+            }
+
+            order = await Db.Orders
+                .Include(x => x.Payments)
+                .Include(x => x.Items)
+                    .ThenInclude(x => x.DocumentType)
+                .Include(x => x.Items)
+                    .ThenInclude(x => x.Documents)
+                .Include(x => x.Items)
+                    .ThenInclude(x => x.DeliveryFiles)
+                .AsSplitQuery()
+                .FirstOrDefaultAsync(x => x.Id == OrderId);
+
+            if (order == null)
+            {
+                errorMessage = "سفارش موردنظر پیدا نشد.";
+                return;
+            }
+
+            originalOrderStatus = order.Status;
+
+            if (!string.IsNullOrWhiteSpace(order.UserId))
+            {
+                customer = await Db.Users
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(x => x.Id == order.UserId);
+            }
+
+            translators = await Db.Users
+                .AsNoTracking()
+                .Where(x => x.Role == "Translator")
+                .OrderBy(x => x.FirstName)
+                .ThenBy(x => x.LastName)
+                .ToListAsync();
+
+            var deliveryTranslatorIds = order.Items
+                .SelectMany(x => x.DeliveryFiles)
+                .Select(x => x.TranslatorId)
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Distinct()
+                .ToList();
+
+            if (deliveryTranslatorIds.Any())
+            {
+                deliveryTranslators = await Db.Users
+                    .AsNoTracking()
+                    .Where(x => deliveryTranslatorIds.Contains(x.Id))
+                    .ToListAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage =
+                $"خطا در دریافت سفارش: {ex.GetBaseException().Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private bool IsReplacementVersion(
+        OrderItem item,
+        OrderDocument document)
+    {
+        var latestDocument = item.Documents
+            .OrderByDescending(x => x.UploadedAt)
+            .FirstOrDefault();
+
+        if (latestDocument == null ||
+            latestDocument.Id != document.Id)
+        {
+            return false;
+        }
+
+        return item.Documents.Any(x =>
+            x.Id != document.Id &&
+            x.ReviewStatus == "NeedsCorrection" &&
+            x.UploadedAt < document.UploadedAt);
+    }
+
+    private async Task SaveOrder()
+    {
+        if (order == null || isSaving)
+            return;
+
+        isSaving = true;
+        errorMessage = null;
+        successMessage = null;
+
+        try
+        {
+            // وضعیت پرداخت و وضعیت کلی سفارش از این صفحه تغییر نمی‌کند.
+            if (order.Status != originalOrderStatus)
+            {
+                throw new InvalidOperationException(
+                    "تغییر وضعیت پرداخت و وضعیت کلی سفارش از این بخش مجاز نیست.");
+            }
+
+            if (order.Notes?.Length > 2000)
+            {
+                throw new InvalidOperationException(
+                    "یادداشت داخلی نباید بیشتر از ۲۰۰۰ کاراکتر باشد.");
+            }
+
+            foreach (var item in order.Items)
+            {
+                if (!AllowedItemStatuses.Contains(item.Status))
+                {
+                    throw new InvalidOperationException(
+                        "وضعیت یکی از مدارک معتبر نیست.");
+                }
+
+                foreach (var document in item.Documents)
+                {
+                    if (!AllowedReviewStatuses.Contains(document.ReviewStatus))
+                    {
+                        throw new InvalidOperationException(
+                            "وضعیت بررسی یکی از فایل‌ها معتبر نیست.");
+                    }
+
+                    if (document.ReviewNote?.Length > 1000)
+                    {
+                        throw new InvalidOperationException(
+                            "توضیحات بررسی مدرک نباید بیشتر از ۱۰۰۰ کاراکتر باشد.");
+                    }
+                }
+            }
+
+            var selectedTranslatorIds = order.Items
+                .Where(x => !string.IsNullOrWhiteSpace(x.TranslatorId))
+                .Select(x => x.TranslatorId!)
+                .Distinct()
+                .ToList();
+
+            if (selectedTranslatorIds.Any())
+            {
+                var validTranslatorIds = await Db.Users
+                    .Where(x =>
+                        selectedTranslatorIds.Contains(x.Id) &&
+                        x.Role == "Translator")
+                    .Select(x => x.Id)
+                    .ToListAsync();
+
+                if (validTranslatorIds.Count != selectedTranslatorIds.Count)
+                {
+                    throw new InvalidOperationException(
+                        "یکی از مترجمان انتخاب‌شده معتبر نیست یا نقش مترجم ندارد.");
+                }
+            }
+
+            await Db.SaveChangesAsync();
+
+            successMessage =
+                "تغییرات سفارش، تخصیص مترجم و بررسی مدارک با موفقیت ذخیره شد.";
+        }
+        catch (Exception ex)
+        {
+            errorMessage =
+                $"خطا در ذخیره تغییرات: {ex.GetBaseException().Message}";
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private static string GetTranslatorName(ApplicationUser translator)
+    {
+        if (!string.IsNullOrWhiteSpace(translator.FullName))
+            return translator.FullName;
+
+        var fullName = $"{translator.FirstName} {translator.LastName}".Trim();
+
+        return string.IsNullOrWhiteSpace(fullName)
+            ? translator.UserName ?? "مترجم بدون نام"
+            : fullName;
+    }
+
+    private string GetTranslatorNameById(string? translatorId)
+    {
+        if (string.IsNullOrWhiteSpace(translatorId))
+            return "تخصیص داده نشده";
+
+        var translator = translators.FirstOrDefault(
+            x => x.Id == translatorId);
+
+        return translator == null
+            ? "مترجم پیدا نشد"
+            : GetTranslatorName(translator);
+    }
+
+    private string GetDeliveryTranslatorName(string? translatorId)
+    {
+        if (string.IsNullOrWhiteSpace(translatorId))
+            return "نامشخص";
+
+        var translator = deliveryTranslators.FirstOrDefault(
+            x => x.Id == translatorId);
+
+        return translator == null
+            ? "حساب مترجم یافت نشد"
+            : GetTranslatorName(translator);
+    }
+
+    private static string GetItemStatusTitle(string? status)
+    {
+        return status switch
+        {
+            "Pending" => "در انتظار انجام",
+            "InProgress" => "در حال ترجمه",
+            "Completed" => "ترجمه تکمیل‌شده",
+            _ => status ?? "نامشخص"
+        };
+    }
+
+    private static string GetPaymentStatusTitle(PaymentStatus status)
+    {
+        return status switch
+        {
+            PaymentStatus.Pending => "در انتظار پرداخت",
+            PaymentStatus.Paid => "پرداخت موفق",
+            PaymentStatus.Failed => "ناموفق",
+            _ => "نامشخص"
+        };
+    }
+
+    private static string GetPaymentStatusClass(PaymentStatus status)
+    {
+        return status switch
+        {
+            PaymentStatus.Pending => "bg-warning text-dark",
+            PaymentStatus.Paid => "bg-success",
+            PaymentStatus.Failed => "bg-danger",
+            _ => "bg-secondary"
+        };
+    }
+
+    private static string GetOrderStatusTitle(string? status)
+    {
+        return status switch
+        {
+            "PendingPayment" => "در انتظار پرداخت",
+            "Paid" => "پرداخت‌شده",
+            "Processing" => "در حال پردازش",
+            "Pending" => "در انتظار بررسی",
+            "InProgress" => "در حال انجام",
+            "Completed" => "تکمیل‌شده",
+            "Cancelled" => "لغوشده",
+            _ => status ?? "نامشخص"
+        };
+    }
+
+    private static string GetOrderStatusClass(string? status)
+    {
+        return status switch
+        {
+            "PendingPayment" => "bg-warning text-dark",
+            "Paid" => "bg-success",
+            "Processing" => "bg-info text-dark",
+            "Pending" => "bg-secondary",
+            "InProgress" => "bg-primary",
+            "Completed" => "bg-success",
+            "Cancelled" => "bg-danger",
+            _ => "bg-secondary"
+        };
+    }
+
+    private static string FormatFileSize(long size)
+    {
+        return size < 1024 * 1024
+            ? $"{size / 1024.0:N0} KB"
+            : $"{size / (1024.0 * 1024):N2} MB";
+    }
+}

@@ -1,0 +1,116 @@
+﻿@* @page "/translator/orders" *@
+@using TranslationOffice.Data
+@using TranslationOffice.Models
+@using Microsoft.EntityFrameworkCore
+@inject ApplicationDbContext Db
+@rendermode InteractiveServer
+
+<h3 class="mb-4">سفارش‌های من (پنل مترجم)</h3>
+
+<div class="mb-3">
+    <label class="form-label">شناسه مترجم (موقتی):</label>
+    <input class="form-control" style="max-width:300px" @bind="translatorId" @bind:event="oninput" />
+    <button class="btn btn-sm btn-primary mt-2" @onclick="LoadData">بارگذاری سفارش‌ها</button>
+</div>
+
+@if (items == null)
+{
+    <p class="text-muted">شناسه مترجم را وارد کنید و بارگذاری را بزنید.</p>
+}
+else if (!items.Any())
+{
+    <div class="alert alert-info">سفارشی برای شما یافت نشد.</div>
+}
+else
+{
+    <table class="table table-bordered table-hover">
+        <thead class="table-light">
+            <tr>
+                <th>شماره سفارش</th>
+                <th>مدرک</th>
+                <th>تعداد نسخه</th>
+                <th>سطر/صفحه</th>
+                <th>قیمت</th>
+                <th>وضعیت</th>
+                <th>عملیات</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var item in items)
+            {
+                <tr>
+                    <td>@item.Order?.OrderNumber</td>
+                    <td>@item.DocumentType?.Name</td>
+                    <td>@item.Quantity</td>
+                    <td>@item.Units</td>
+                    <td>@item.TotalPrice.ToString("N0")</td>
+                    <td>
+                        <select class="form-select form-select-sm" style="width:160px"
+                                value="@item.Status"
+                                @onchange="e => ChangeItemStatus(item, e)">
+                            <option value="Pending">در انتظار</option>
+                            <option value="Translating">در حال ترجمه</option>
+                            <option value="DraftReady">پیش‌نویس آماده</option>
+                            <option value="Completed">تکمیل شده</option>
+                        </select>
+                    </td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-secondary" @onclick="() => AssignToMe(item)">
+                            اختصاص به من
+                        </button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    string translatorId = "translator-1";
+    List<OrderItem>? items;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    async Task LoadData()
+    {
+        // فعلاً همه آیتم‌های سفارش‌های فعال را نشان می‌دهیم
+        // بعداً فقط آیتم‌هایی که TranslatorId برابر این مترجم است فیلتر می‌شوند
+        items = await Db.OrderItems
+            .Include(i => i.Order)
+            .Include(i => i.DocumentType)
+            .Where(i => i.Order.Status != "Cancelled" && i.Order.Status != "Completed")
+            .OrderByDescending(i => i.Order.CreatedAt)
+            .ToListAsync();
+    }
+
+    async Task ChangeItemStatus(OrderItem item, ChangeEventArgs e)
+    {
+        var newStatus = e.Value?.ToString();
+        if (string.IsNullOrEmpty(newStatus)) return;
+
+        var existing = await Db.OrderItems.FindAsync(item.Id);
+        if (existing != null)
+        {
+            existing.Status = newStatus;
+            await Db.SaveChangesAsync();
+            item.Status = newStatus;
+        }
+    }
+
+    async Task AssignToMe(OrderItem item)
+    {
+        var existing = await Db.OrderItems.FindAsync(item.Id);
+        if (existing != null)
+        {
+            existing.TranslatorId = translatorId;
+            existing.Status = "Translating";
+            await Db.SaveChangesAsync();
+
+            item.TranslatorId = translatorId;
+            item.Status = "Translating";
+        }
+    }
+}

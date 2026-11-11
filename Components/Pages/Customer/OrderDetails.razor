@@ -1,0 +1,742 @@
+﻿@page "/account/orders/{OrderId:int}"
+
+@using System.Security.Claims
+@using System.IO
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.EntityFrameworkCore
+@using TranslationOffice.Data
+@using TranslationOffice.Models
+@using TranslationOffice.Services
+
+@attribute [Authorize]
+@rendermode InteractiveServer
+
+@inject ApplicationDbContext Db
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject OrderDocumentStorageService DocumentStorage
+@inject NavigationManager Navigation
+
+<PageTitle>جزئیات سفارش</PageTitle>
+
+<div class="container-fluid py-3" dir="rtl">
+
+    <div class="mb-3">
+        <a href="/account/orders" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-arrow-right ms-1"></i>
+            بازگشت به سفارش‌های من
+        </a>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary"></div>
+            <p class="mt-2">در حال بارگذاری...</p>
+        </div>
+    }
+    else if (order == null)
+    {
+        <div class="alert alert-danger">
+            @(errorMessage ?? "سفارش موردنظر پیدا نشد یا اجازه مشاهده آن را ندارید.")
+        </div>
+    }
+    else
+    {
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
+            <div>
+                <h3 class="fw-bold mb-1">جزئیات سفارش</h3>
+                <span class="text-muted small">
+                    شماره سفارش: @order.OrderNumber
+                </span>
+            </div>
+
+            <a href="/order/create" class="btn btn-primary">
+                <i class="bi bi-plus-circle ms-1"></i>
+                ثبت سفارش جدید
+            </a>
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(errorMessage))
+        {
+            <div class="alert alert-danger">
+                @errorMessage
+            </div>
+        }
+
+        @if (!string.IsNullOrWhiteSpace(successMessage))
+        {
+            <div class="alert alert-success">
+                @successMessage
+            </div>
+        }
+
+        <!-- اطلاعات سفارش -->
+        <div class="card border-0 shadow-sm mb-4">
+
+            <div class="card-header bg-white fw-bold py-3">
+                <i class="bi bi-receipt ms-1"></i>
+                اطلاعات سفارش
+            </div>
+
+            <div class="card-body">
+
+                <div class="row">
+
+                    <div class="col-md-6 mb-3">
+                        <strong>شماره سفارش:</strong>
+                        @order.OrderNumber
+                    </div>
+
+                    <div class="col-md-6 mb-3">
+                        <strong>تاریخ ثبت:</strong>
+                        @order.CreatedAt.ToString("yyyy/MM/dd HH:mm")
+                    </div>
+
+                    <div class="col-md-6 mb-3">
+                        <strong>وضعیت پرداخت:</strong>
+                        <span class="badge @GetPaymentStatusClass(order.Status)">
+                            @GetPaymentStatusText(order.Status)
+                        </span>
+                    </div>
+
+                    <div class="col-md-6 mb-3">
+                        <strong>وضعیت ترجمه:</strong>
+                        <span class="badge @GetProgressStatusClass(order.ProgressStatus)">
+                            @GetProgressStatusText(order.ProgressStatus)
+                        </span>
+                    </div>
+
+                    <div class="col-md-6 mb-3">
+                        <strong>مبلغ کل:</strong>
+                        <span class="fw-bold text-primary">
+                            @order.TotalPrice.ToString("N0") تومان
+                        </span>
+                    </div>
+
+                    @if (!string.IsNullOrWhiteSpace(order.Notes))
+                    {
+                        <div class="col-12">
+                            <strong>توضیحات:</strong>
+                            <p class="mb-0 mt-1">@order.Notes</p>
+                        </div>
+                    }
+
+                </div>
+
+            </div>
+        </div>
+
+        <!-- ردیف‌های سفارش -->
+        @foreach (var item in order.Items)
+        {
+            var correctionDocuments = item.Documents
+                .Where(x => x.ReviewStatus == "NeedsCorrection")
+                .ToList();
+
+            <div class="card border-0 shadow-sm mb-4">
+
+                <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap gap-2 py-3">
+
+                    <strong>
+                        <i class="bi bi-file-earmark-text ms-1"></i>
+                        @item.DocumentType.Name
+                    </strong>
+
+                    <span class="fw-bold text-primary">
+                        @item.TotalPrice.ToString("N0") تومان
+                    </span>
+
+                </div>
+
+                <div class="card-body">
+
+                    <!-- اطلاعات مدرک -->
+                    <h6 class="fw-bold mb-3">اطلاعات مدرک</h6>
+
+                    <div class="row mb-3">
+
+                        <div class="col-md-6 mb-2">
+                            <strong>تعداد نسخه:</strong>
+                            @item.Quantity
+                        </div>
+
+                        <div class="col-md-6 mb-2">
+                            <strong>تعداد صفحه/سطر:</strong>
+                            @item.Units
+                        </div>
+
+                        <div class="col-md-6 mb-2">
+                            <strong>تأیید دادگستری:</strong>
+                            @(item.NeedJudiciary ? "بله" : "خیر")
+                        </div>
+
+                        <div class="col-md-6 mb-2">
+                            <strong>تأیید وزارت خارجه:</strong>
+                            @(item.NeedForeignAffairs ? "بله" : "خیر")
+                        </div>
+
+                        <div class="col-md-6 mb-2">
+                            <strong>وضعیت ترجمه:</strong>
+                            <span class="badge @GetProgressStatusClass(item.Status)">
+                                @GetProgressStatusText(item.Status)
+                            </span>
+                        </div>
+
+                    </div>
+
+                    <hr />
+
+                    <!-- مدارک اولیه و اصلاحی مشتری -->
+                    <h6 class="fw-bold mb-3">
+                        <i class="bi bi-file-earmark-text ms-1"></i>
+                        مدارک بارگذاری‌شده و وضعیت بررسی
+                    </h6>
+
+                    @if (item.Documents.Any())
+                    {
+                        <div class="table-responsive">
+
+                            <table class="table table-bordered table-hover table-sm align-middle">
+
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>نام فایل</th>
+                                        <th>حجم</th>
+                                        <th>تاریخ بارگذاری</th>
+                                        <th>وضعیت بررسی</th>
+                                        <th>توضیحات مدیر</th>
+                                    </tr>
+                                </thead>
+
+                                <tbody>
+
+                                    @foreach (var document in item.Documents.OrderByDescending(x => x.UploadedAt))
+                                    {
+                                        <tr>
+
+                                            <td class="fw-bold">
+                                                @document.OriginalFileName
+                                            </td>
+
+                                            <td>
+                                                @FormatFileSize(document.FileSize)
+                                            </td>
+
+                                            <td>
+                                                @document.UploadedAt.ToString("yyyy/MM/dd HH:mm")
+                                            </td>
+
+                                            <td>
+                                                @if (document.ReviewStatus == "Approved")
+                                                {
+                                                    <span class="badge bg-success">
+                                                        تأییدشده
+                                                    </span>
+                                                }
+                                                else if (document.ReviewStatus == "NeedsCorrection")
+                                                {
+                                                    <span class="badge bg-danger">
+                                                        نیازمند اصلاح
+                                                    </span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="badge bg-warning text-dark">
+                                                        در انتظار بررسی
+                                                    </span>
+                                                }
+                                            </td>
+
+                                            <td>
+                                                @if (!string.IsNullOrWhiteSpace(document.ReviewNote))
+                                                {
+                                                    @document.ReviewNote
+                                                }
+                                                else
+                                                {
+                                                    <span class="text-muted">-</span>
+                                                }
+                                            </td>
+
+                                        </tr>
+                                    }
+
+                                </tbody>
+
+                            </table>
+
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="alert alert-info">
+                            هنوز مدرکی برای این بخش بارگذاری نشده است.
+                        </div>
+                    }
+
+                    <!-- هشدار مدارک نیازمند اصلاح -->
+                    @if (correctionDocuments.Any())
+                    {
+                        <div class="alert alert-danger mt-3">
+
+                            <h6 class="fw-bold">
+                                <i class="bi bi-exclamation-triangle ms-1"></i>
+                                مدارک نیازمند اصلاح
+                            </h6>
+
+                            <p class="mb-2">
+                                مدیر مدارک زیر را نیازمند اصلاح اعلام کرده است:
+                            </p>
+
+                            <ul class="mb-0">
+
+                                @foreach (var document in correctionDocuments)
+                                {
+                                    <li>
+
+                                        <strong>
+                                            @document.OriginalFileName
+                                        </strong>
+
+                                        @if (!string.IsNullOrWhiteSpace(document.ReviewNote))
+                                        {
+                                            <div class="mt-1">
+                                                علت اصلاح:
+                                                @document.ReviewNote
+                                            </div>
+                                        }
+
+                                    </li>
+                                }
+
+                            </ul>
+
+                        </div>
+                    }
+
+                    <!-- بارگذاری مدارک مشتری -->
+                    <div class="border rounded p-3 mt-3">
+
+                        <h6 class="fw-bold mb-3">
+                            @if (correctionDocuments.Any())
+                            {
+                                <span>بارگذاری فایل اصلاح‌شده</span>
+                            }
+                            else
+                            {
+                                <span>بارگذاری مدارک جدید</span>
+                            }
+                        </h6>
+
+                        @if (correctionDocuments.Any())
+                        {
+                            <p class="text-muted">
+                                لطفاً فایل اصلاح‌شده را بارگذاری کنید.
+                                فایل قبلی حذف نمی‌شود و برای حفظ سوابق باقی می‌ماند.
+                            </p>
+                        }
+                        else
+                        {
+                            <p class="text-muted">
+                                در صورت نیاز می‌توانید مدارک بیشتری برای این بخش بارگذاری کنید.
+                            </p>
+                        }
+
+                        <InputFile OnChange="@(e => UploadFiles(item.Id, e))"
+                                   multiple
+                                   accept=".pdf,.jpg,.jpeg,.png"
+                                   class="form-control"
+                                   disabled="@isUploading" />
+
+                        <small class="text-muted d-block mt-2">
+                            فرمت مجاز: PDF، JPG، JPEG و PNG
+                            <br />
+                            حداکثر ۱۰ مگابایت برای هر فایل
+                            <br />
+                            حداکثر ۱۰ فایل برای هر ردیف سفارش
+                        </small>
+
+                        @if (isUploading)
+                        {
+                            <div class="mt-3 text-primary">
+                                <span class="spinner-border spinner-border-sm ms-2"></span>
+                                در حال بارگذاری فایل‌ها...
+                            </div>
+                        }
+
+                    </div>
+
+                    <hr />
+
+                    <!-- فایل‌های ترجمه‌شده -->
+                    <h6 class="fw-bold mb-3">
+                        <i class="bi bi-file-earmark-check ms-1"></i>
+                        فایل‌های ترجمه‌شده و تحویلی
+                    </h6>
+
+                    @if (item.DeliveryFiles.Any())
+                    {
+                        <div class="table-responsive">
+
+                            <table class="table table-bordered table-hover table-sm align-middle">
+
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>نام فایل</th>
+                                        <th>حجم</th>
+                                        <th>تاریخ تحویل</th>
+                                        <th>دریافت فایل</th>
+                                    </tr>
+                                </thead>
+
+                                <tbody>
+
+                                    @foreach (var delivery in item.DeliveryFiles.OrderByDescending(x => x.UploadedAt))
+                                    {
+                                        <tr>
+
+                                            <td class="fw-bold">
+                                                @delivery.OriginalFileName
+                                            </td>
+
+                                            <td>
+                                                @FormatFileSize(delivery.FileSize)
+                                            </td>
+
+                                            <td>
+                                                @delivery.UploadedAt.ToString("yyyy/MM/dd HH:mm")
+                                            </td>
+
+                                            <td>
+                                                <a href="@($"/api/delivery-files/{delivery.Id}/download")"
+                                                   class="btn btn-sm btn-success">
+
+                                                    <i class="bi bi-download ms-1"></i>
+                                                    دانلود ترجمه
+
+                                                </a>
+                                            </td>
+
+                                        </tr>
+                                    }
+
+                                </tbody>
+
+                            </table>
+
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="alert alert-info mb-0">
+                            هنوز فایل ترجمه‌شده‌ای برای این بخش تحویل داده نشده است.
+                        </div>
+                    }
+
+                </div>
+            </div>
+        }
+    }
+
+</div>
+
+@code {
+
+    [Parameter]
+    public int OrderId { get; set; }
+
+    private const long MaxFileSize = 10 * 1024 * 1024;
+
+    private static readonly HashSet<string> AllowedExtensions =
+        new(StringComparer.OrdinalIgnoreCase)
+        {
+            ".pdf",
+            ".jpg",
+            ".jpeg",
+            ".png"
+        };
+
+    private Order? order;
+
+    private bool isLoading = true;
+    private bool isUploading;
+
+    private string? errorMessage;
+    private string? successMessage;
+    private string? currentUserId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var authState =
+                await AuthenticationStateProvider.GetAuthenticationStateAsync();
+
+            var user = authState.User;
+
+            if (user.Identity?.IsAuthenticated != true)
+            {
+                Navigation.NavigateTo("/Account/Login", true);
+                return;
+            }
+
+            currentUserId = user.FindFirstValue(
+                ClaimTypes.NameIdentifier);
+
+            if (string.IsNullOrWhiteSpace(currentUserId))
+            {
+                errorMessage = "اطلاعات حساب کاربری معتبر نیست.";
+                return;
+            }
+
+            await LoadOrder();
+        }
+        catch (Exception ex)
+        {
+            errorMessage =
+                $"خطا در دریافت اطلاعات: {ex.GetBaseException().Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task LoadOrder()
+    {
+        if (string.IsNullOrWhiteSpace(currentUserId))
+        {
+            order = null;
+            return;
+        }
+
+        order = await Db.Orders
+            .AsNoTracking()
+            .Where(x =>
+                x.Id == OrderId &&
+                x.UserId == currentUserId)
+            .Include(x => x.Items)
+                .ThenInclude(x => x.DocumentType)
+            .Include(x => x.Items)
+                .ThenInclude(x => x.Documents)
+            .Include(x => x.Items)
+                .ThenInclude(x => x.DeliveryFiles)
+            .AsSplitQuery()
+            .FirstOrDefaultAsync();
+
+        if (order == null)
+        {
+            errorMessage =
+                "سفارش موردنظر پیدا نشد یا اجازه مشاهده آن را ندارید.";
+        }
+    }
+
+    private async Task UploadFiles(
+        int orderItemId,
+        InputFileChangeEventArgs e)
+    {
+        if (isUploading)
+            return;
+
+        errorMessage = null;
+        successMessage = null;
+        isUploading = true;
+
+        var savedFiles = new List<OrderDocument>();
+        var databaseCommitted = false;
+
+        try
+        {
+            if (string.IsNullOrWhiteSpace(currentUserId))
+            {
+                throw new InvalidOperationException(
+                    "اطلاعات حساب کاربری معتبر نیست.");
+            }
+
+            // بررسی مجدد مالکیت سفارش و ردیف سفارش
+            var item = await Db.OrderItems
+                .AsNoTracking()
+                .Include(x => x.Order)
+                .FirstOrDefaultAsync(x =>
+                    x.Id == orderItemId &&
+                    x.OrderId == OrderId &&
+                    x.Order.UserId == currentUserId);
+
+            if (item == null)
+            {
+                throw new InvalidOperationException(
+                    "ردیف سفارش پیدا نشد یا اجازه بارگذاری فایل ندارید.");
+            }
+
+            var existingCount = await Db.OrderDocuments
+                .CountAsync(x => x.OrderItemId == orderItemId);
+
+            var files = e.GetMultipleFiles(10);
+
+            if (files.Count == 0)
+            {
+                throw new InvalidOperationException(
+                    "لطفاً حداقل یک فایل انتخاب کنید.");
+            }
+
+            if (existingCount + files.Count > 10)
+            {
+                throw new InvalidOperationException(
+                    "برای هر ردیف سفارش حداکثر ۱۰ فایل مجاز است.");
+            }
+
+            await using var transaction =
+                await Db.Database.BeginTransactionAsync();
+
+            foreach (var file in files)
+            {
+                var extension = Path.GetExtension(file.Name);
+
+                if (!AllowedExtensions.Contains(extension))
+                {
+                    throw new InvalidOperationException(
+                        $"فرمت فایل {file.Name} مجاز نیست.");
+                }
+
+                if (file.Size <= 0 || file.Size > MaxFileSize)
+                {
+                    throw new InvalidOperationException(
+                        $"حجم فایل {file.Name} باید حداکثر ۱۰ مگابایت باشد.");
+                }
+
+                await using var input =
+                    file.OpenReadStream(MaxFileSize);
+
+                await using var memory = new MemoryStream();
+
+                await input.CopyToAsync(memory);
+
+                var content = memory.ToArray();
+
+                if (content.Length != file.Size)
+                {
+                    throw new InvalidOperationException(
+                        $"خواندن فایل {file.Name} کامل انجام نشد.");
+                }
+
+                var document = await DocumentStorage.SaveAsync(
+                    Path.GetFileName(file.Name),
+                    content,
+                    OrderId,
+                    item.Id);
+
+                savedFiles.Add(document);
+
+                Db.OrderDocuments.Add(document);
+            }
+
+            await Db.SaveChangesAsync();
+
+            await transaction.CommitAsync();
+
+            databaseCommitted = true;
+
+            successMessage =
+                "مدارک با موفقیت بارگذاری شدند. فایل‌های قبلی نیز برای حفظ سوابق باقی مانده‌اند.";
+
+            Db.ChangeTracker.Clear();
+
+            try
+            {
+                await LoadOrder();
+            }
+            catch (Exception refreshException)
+            {
+                errorMessage =
+                    "فایل‌ها ذخیره شدند، اما بارگذاری مجدد اطلاعات با خطا مواجه شد: " +
+                    refreshException.GetBaseException().Message;
+            }
+        }
+        catch (Exception ex)
+        {
+            if (!databaseCommitted)
+            {
+                foreach (var file in savedFiles)
+                {
+                    try
+                    {
+                        await DocumentStorage.DeleteAsync(
+                            file.StoredFileName);
+                    }
+                    catch
+                    {
+                        // خطای پاک‌سازی نباید خطای اصلی را پنهان کند.
+                    }
+                }
+            }
+
+            Db.ChangeTracker.Clear();
+
+            errorMessage =
+                $"بارگذاری مدارک با خطا مواجه شد: {ex.GetBaseException().Message}";
+        }
+        finally
+        {
+            isUploading = false;
+        }
+    }
+
+    private static string GetPaymentStatusText(string? status)
+    {
+        return status switch
+        {
+            "PendingPayment" => "در انتظار پرداخت",
+            "Paid" => "پرداخت‌شده",
+            "Failed" => "پرداخت ناموفق",
+            "Refunded" => "مسترد شده",
+            "Cancelled" => "لغوشده",
+            _ => status ?? "نامشخص"
+        };
+    }
+
+    private static string GetPaymentStatusClass(string? status)
+    {
+        return status switch
+        {
+            "Paid" => "bg-success",
+            "PendingPayment" => "bg-warning text-dark",
+            "Failed" => "bg-danger",
+            "Refunded" => "bg-info text-dark",
+            "Cancelled" => "bg-secondary",
+            _ => "bg-secondary"
+        };
+    }
+
+    private static string GetProgressStatusText(string? status)
+    {
+        return status switch
+        {
+            "Pending" => "در انتظار شروع",
+            "InProgress" => "در حال ترجمه",
+            "Completed" => "تکمیل‌شده",
+            "Cancelled" => "لغوشده",
+            _ => status ?? "نامشخص"
+        };
+    }
+
+    private static string GetProgressStatusClass(string? status)
+    {
+        return status switch
+        {
+            "Completed" => "bg-success",
+            "InProgress" => "bg-primary",
+            "Pending" => "bg-warning text-dark",
+            "Cancelled" => "bg-danger",
+            _ => "bg-secondary"
+        };
+    }
+
+    private static string FormatFileSize(long size)
+    {
+        return size < 1024 * 1024
+            ? $"{size / 1024.0:N0} KB"
+            : $"{size / (1024.0 * 1024):N2} MB";
+    }
+}
