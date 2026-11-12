@@ -199,6 +199,7 @@
     private bool isCustomer;
     private bool isMenuOpen;
     private int cartItemCount;
+    private string cartStorageKey = "guest";
     private bool cartAnimation;
     private IJSObjectReference? cartStorageModule;
     private DotNetObjectReference<MainLayout>? cartDotNetReference;
@@ -217,7 +218,9 @@
             await cartStorageModule.InvokeVoidAsync(
                 "subscribeCartChanges", cartDotNetReference);
 
-            var itemCount = await cartStorageModule.InvokeAsync<int>("loadCartCount");
+            var itemCount = await cartStorageModule.InvokeAsync<int>(
+                "loadCartCount",
+                cartStorageKey);
             UpdateCartBadge(itemCount, false);
             StateHasChanged();
         }
@@ -269,11 +272,16 @@
     {
         var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
         var user = authState.User;
-
-        if (user.Identity?.IsAuthenticated != true) return;
-
         var userId = user.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (string.IsNullOrWhiteSpace(userId)) return;
+
+        cartStorageKey = user.Identity?.IsAuthenticated == true &&
+                         !string.IsNullOrWhiteSpace(userId)
+            ? $"user:{userId}"
+            : "guest";
+
+        if (user.Identity?.IsAuthenticated != true ||
+            string.IsNullOrWhiteSpace(userId))
+            return;
 
         await using var db = await DbFactory.CreateDbContextAsync();
 
