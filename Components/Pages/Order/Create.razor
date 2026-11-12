@@ -298,6 +298,9 @@ else
         PropertyNameCaseInsensitive = true
     };
 
+    [Parameter]
+    public int? DocumentId { get; set; }
+
     private List<DocumentType>? documents;
     private DocumentType? selectedDoc;
 
@@ -330,6 +333,15 @@ else
             .Where(x => x.IsActive)
             .OrderBy(x => x.Name)
             .ToListAsync();
+
+        if (DocumentId.HasValue)
+        {
+            selectedDoc = documents.FirstOrDefault(x => x.Id == DocumentId.Value);
+            if (selectedDoc == null)
+                errorMessage = "مدرک موردنظر پیدا نشد یا در حال حاضر فعال نیست.";
+            else
+                CalculatePrice();
+        }
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -403,28 +415,53 @@ else
         }
     }
 
-    private void OnDocumentChanged(ChangeEventArgs e)
+    private void GoToProduct(DocumentType doc)
     {
-        selectedFiles.Clear();
-        errorMessage = null;
-
-        if (int.TryParse(e.Value?.ToString(), out int id))
-        {
-            selectedDoc = documents?.FirstOrDefault(x => x.Id == id);
-
-            units = 1;
-            quantity = 1;
-            needJudiciary = false;
-            needForeignAffairs = false;
-
-            CalculatePrice();
-        }
-        else
-        {
-            selectedDoc = null;
-            currentPrice = 0;
-        }
+        Navigation.NavigateTo($"/order/product/{doc.Id}");
     }
+
+    private void BackToProducts()
+    {
+        Navigation.NavigateTo("/order/create");
+    }
+
+    private static string GetPricingTypeText(DocumentType doc) =>
+        doc.PricingType switch
+        {
+            PricingType.Fixed => "قیمت ثابت",
+            PricingType.PerLine => "محاسبه بر اساس سطر",
+            PricingType.PerPage => "محاسبه بر اساس صفحه",
+            _ => "ترجمه رسمی"
+        };
+
+    private static string GetDocumentIcon(DocumentType doc) =>
+        doc.Name.Contains("شناسنامه") ? "bi bi-person-vcard" :
+        doc.Name.Contains("ریزنمرات") ? "bi bi-mortarboard" :
+        doc.Name.Contains("قرارداد") ? "bi bi-file-earmark-text" :
+        doc.PricingType == PricingType.PerPage ? "bi bi-file-earmark-richtext" :
+        doc.PricingType == PricingType.PerLine ? "bi bi-text-paragraph" :
+        "bi bi-file-earmark-check";
+
+    private static string GetDocumentDescription(DocumentType doc)
+    {
+        if (!string.IsNullOrWhiteSpace(doc.Description))
+            return doc.Description;
+
+        return doc.PricingType switch
+        {
+            PricingType.Fixed => "هزینه ترجمه این مدرک به‌صورت ثابت محاسبه می‌شود. در صورت نیاز می‌توانید خدمات تأیید دادگستری و وزارت امور خارجه را نیز انتخاب کنید.",
+            PricingType.PerLine => "هزینه ترجمه این مدرک بر اساس تعداد سطرهای متن محاسبه می‌شود. تعداد سطرها و خدمات تأیید موردنیاز را در ادامه مشخص کنید.",
+            PricingType.PerPage => "هزینه ترجمه این مدرک بر اساس تعداد صفحات محاسبه می‌شود. تعداد صفحات و خدمات تأیید موردنیاز را در ادامه مشخص کنید.",
+            _ => "جزئیات و گزینه‌های موردنیاز برای ثبت سفارش را در این صفحه انتخاب کنید."
+        };
+    }
+
+    private static string GetDocumentShortDescription(DocumentType doc)
+    {
+        var description = GetDocumentDescription(doc);
+        return description.Length > 105 ? description[..102] + "..." : description;
+    }
+
 
     private void OnUnitsChanged(ChangeEventArgs e)
     {
@@ -609,6 +646,7 @@ else
         currentPrice = 0;
 
         await SavePersistentCartAsync();
+        Navigation.NavigateTo("/order/create");
     }
 
     private async Task RemoveFromCart(CartItem item)
