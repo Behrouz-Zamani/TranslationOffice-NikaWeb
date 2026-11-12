@@ -1,6 +1,9 @@
 ﻿@inherits LayoutComponentBase
+@implements IAsyncDisposable
 
 @using System.Security.Claims
+@using System.Text.Json
+@using Microsoft.JSInterop
 @using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.EntityFrameworkCore
 @using TranslationOffice.Data
@@ -8,6 +11,7 @@
 
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject IDbContextFactory<ApplicationDbContext> DbFactory
+@inject IJSRuntime JS
 
 <HeadContent>
     <link href="/css/mainlayout.css?v=4" rel="stylesheet" />
@@ -107,6 +111,17 @@
                     </ul>
 
                     <div class="nav-actions">
+                        <a href="/order/cart"
+                           class="header-cart-link @(cartAnimation ? "cart-animate" : "")"
+                           aria-label="سبد سفارش، @cartItemCount قلم"
+                           title="سبد سفارش">
+                            <span class="header-cart-icon"><i class="bi bi-cart3"></i></span>
+                            @if (cartItemCount > 0)
+                            {
+                                <span class="header-cart-count">@cartItemCount</span>
+                            }
+                            <span class="header-cart-label">سبد سفارش</span>
+                        </a>
                         <AuthorizeView>
                             <Authorized Context="auth">
                                 <div class="user-profile">
@@ -183,6 +198,90 @@
     private bool isTranslator;
     private bool isCustomer;
     private bool isMenuOpen;
+    private int cartItemCount;
+    private bool cartAnimation;
+    private IJSObjectReference? cartStorageModule;
+    private DotNetObjectReference<MainLayout>? cartDotNetReference;
+
+    private sealed class CartBadgeState
+    {
+        public List<CartBadgeItem> Items { get; set; } = new();
+    }
+
+    private sealed class CartBadgeItem { }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+            return;
+
+        try
+        {
+            cartStorageModule = await JS.InvokeAsync<IJSObjectReference>(
+                "import", "./js/orderCartStorage.js");
+
+            cartDotNetReference = DotNetObjectReference.Create(this);
+            await cartStorageModule.InvokeVoidAsync(
+                "subscribeCartChanges", cartDotNetReference);
+
+            var savedJson = await cartStorageModule.InvokeAsync<string?>("loadCart");
+            UpdateCartBadge(savedJson, false);
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Cart badge initialization failed: {ex.GetBaseException().Message}");
+        }
+    }
+
+    [JSInvokable]
+    public async Task OnCartChanged(string? savedJson)
+    {
+        UpdateCartBadge(savedJson, true);
+        await InvokeAsync(StateHasChanged);
+
+        await Task.Delay(650);
+        cartAnimation = false;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void UpdateCartBadge(string? savedJson, bool animate)
+    {
+        try
+        {
+            var state = string.IsNullOrWhiteSpace(savedJson)
+                ? null
+                : JsonSerializer.Deserialize<CartBadgeState>(
+                    savedJson,
+                    new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+            cartItemCount = state?.Items?.Count ?? 0;
+        }
+        catch
+        {
+            cartItemCount = 0;
+        }
+
+        cartAnimation = animate && cartItemCount > 0;
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (cartStorageModule != null)
+        {
+            try
+            {
+                await cartStorageModule.InvokeVoidAsync("unsubscribeCartChanges");
+                await cartStorageModule.DisposeAsync();
+            }
+            catch
+            {
+                // The layout may already be disconnected.
+            }
+        }
+
+        cartDotNetReference?.Dispose();
+    }
 
     private void ToggleMenu() => isMenuOpen = !isMenuOpen;
     private void CloseMenu() => isMenuOpen = false;
