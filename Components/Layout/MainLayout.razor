@@ -231,8 +231,11 @@
     }
 
     [JSInvokable]
-    public async Task OnCartChanged(int itemCount)
+    public async Task OnCartChanged(string storageKey, int itemCount)
     {
+        if (!string.Equals(storageKey, cartStorageKey, StringComparison.Ordinal))
+            return;
+
         UpdateCartBadge(itemCount, true);
         await InvokeAsync(StateHasChanged);
 
