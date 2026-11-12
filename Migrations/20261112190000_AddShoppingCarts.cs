@@ -21,6 +21,7 @@ public partial class AddShoppingCarts : Migration
                 CartKey = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
                 CartJson = table.Column<string>(type: "nvarchar(max)", nullable: false),
                 OrderId = table.Column<int>(type: "int", nullable: true),
+                ItemCount = table.Column<int>(type: "int", nullable: false),
                 UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: false)
             },
             constraints: table => table.PrimaryKey("PK_ShoppingCarts", x => x.Id));
