@@ -59,6 +59,7 @@ export async function saveCart(json) {
             transaction.objectStore(STORE_NAME).put(json, CART_KEY);
 
             transaction.oncomplete = function () {
+                window.dispatchEvent(new CustomEvent("orderCartChanged", { detail: json }));
                 resolve();
             };
 
@@ -86,6 +87,7 @@ export async function clearCart() {
             transaction.objectStore(STORE_NAME).delete(CART_KEY);
 
             transaction.oncomplete = function () {
+                window.dispatchEvent(new CustomEvent("orderCartChanged", { detail: null }));
                 resolve();
             };
 
@@ -100,5 +102,26 @@ export async function clearCart() {
     }
     finally {
         db.close();
+    }
+}
+
+
+let cartChangeHandler = null;
+
+export function subscribeCartChanges(dotNetReference) {
+    unsubscribeCartChanges();
+
+    cartChangeHandler = function (event) {
+        dotNetReference.invokeMethodAsync("OnCartChanged", event.detail ?? null)
+            .catch(() => { });
+    };
+
+    window.addEventListener("orderCartChanged", cartChangeHandler);
+}
+
+export function unsubscribeCartChanges() {
+    if (cartChangeHandler) {
+        window.removeEventListener("orderCartChanged", cartChangeHandler);
+        cartChangeHandler = null;
     }
 }
