@@ -1,4 +1,4 @@
-﻿@page "/order/create"
+@page "/order/create"
 @page "/order/cart"
 @page "/order/product/{DocumentId:int}"
 
@@ -11,12 +11,15 @@
 @using Microsoft.AspNetCore.Components
 @using Microsoft.AspNetCore.Components.Forms
 @using Microsoft.JSInterop
+@using Microsoft.AspNetCore.Components.Authorization
+@using System.Security.Claims
 
 @inject ApplicationDbContext Db
 @inject PricingService Pricing
 @inject OrderDocumentStorageService DocumentStorage
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
+@inject AuthenticationStateProvider AuthStateProvider
 
 
 <div class="order-page-heading mb-4">
@@ -35,12 +38,18 @@
     }
 </div>
 
-@if (documents == null || !isCartLoaded)
+@if (documents == null)
 {
-    <p class="text-center my-5">در حال بارگذاری اطلاعات...</p>
+    <p class="text-center my-5">در حال بارگذاری فهرست مدارک...</p>
 }
 else
 {
+    @if (!isCartLoaded)
+    {
+        <div class="alert alert-info py-2 mb-3">
+            در حال بازیابی سبد سفارش؛ لطفاً چند لحظه صبر کنید.
+        </div>
+    }
     @if (activeOrderId.HasValue)
     {
         <div class="alert alert-info">
@@ -132,7 +141,7 @@ else
                         <div><span>مبلغ این مدرک</span><small>بر اساس گزینه‌های انتخاب‌شده</small></div>
                         <strong>@currentPrice.ToString("N0") <small>تومان</small></strong>
                     </div>
-                    <button type="button" class="btn order-add-button w-100 mt-3" @onclick="AddToCart" disabled="@isSubmitting">
+                    <button type="button" class="btn order-add-button w-100 mt-3" @onclick="AddToCart" disabled="@(isSubmitting || !isCartLoaded)">
                         <i class="bi bi-cart-plus ms-2"></i> افزودن به سبد سفارش
                     </button>
                 </div>
@@ -274,7 +283,7 @@ else
                             <button type="button"
                                     class="btn btn-success w-100"
                                     @onclick="SubmitOrder"
-                                    disabled="@isSubmitting">
+                                    disabled="@(isSubmitting || !isCartLoaded)">
 
                                 @(isSubmitting
                                     ? "در حال ثبت اطلاعات..."
@@ -358,15 +367,24 @@ else
     private List<CartItem> cart = new();
 
     private IJSObjectReference? cartStorage;
+    private string cartStorageKey = "guest";
 
     protected override async Task OnInitializedAsync()
     {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        var userId = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+        cartStorageKey = user.Identity?.IsAuthenticated == true &&
+                         !string.IsNullOrWhiteSpace(userId)
+            ? $"user:{userId}"
+            : "guest";
+
         documents = await Db.DocumentTypes
             .AsNoTracking()
             .Where(x => x.IsActive)
             .OrderBy(x => x.Name)
             .ToListAsync();
-
     }
 
     protected override void OnParametersSet()
@@ -417,7 +435,9 @@ else
                 "import",
                 "./js/orderCartStorage.js");
 
-            var savedJson = await cartStorage.InvokeAsync<string?>("loadCart");
+            var savedJson = await cartStorage.InvokeAsync<string?>(
+                "loadCart",
+                cartStorageKey);
 
             if (!string.IsNullOrWhiteSpace(savedJson))
             {
@@ -950,7 +970,7 @@ else
 
         var json = JsonSerializer.Serialize(state, JsonOptions);
 
-        await cartStorage.InvokeVoidAsync("saveCart", json);
+        await cartStorage.InvokeVoidAsync("saveCart", json, cartStorageKey);
     }
 
     private async Task ClearPersistentCartAsync()
@@ -958,7 +978,7 @@ else
         if (cartStorage == null)
             return;
 
-        await cartStorage.InvokeVoidAsync("clearCart");
+        await cartStorage.InvokeVoidAsync("clearCart", cartStorageKey);
     }
 
     private static string FormatFileSize(long size)
