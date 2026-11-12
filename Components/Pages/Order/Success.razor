@@ -5,13 +5,12 @@
 @using TranslationOffice.Services
 @using Microsoft.EntityFrameworkCore
 @using Microsoft.AspNetCore.Components.Authorization
-@using Microsoft.JSInterop
 @using System.Security.Claims
 
 @inject ApplicationDbContext Db
 @inject NavigationManager Navigation
 @inject AuthenticationStateProvider AuthStateProvider
-@inject IJSRuntime JS
+@inject CartService CartService
 
 @rendermode InteractiveServer
 
@@ -179,21 +178,17 @@ else
     private bool canView;
     private bool showClaimButton;
     private bool isAuthenticated;
-    private bool shouldClearGuestCart;
-    private bool cartCleared;
 
     private string claimUrl = "";
     private string loginUrl = "";
     private string registerUrl = "";
 
-    private IJSObjectReference? cartStorage;
 
     protected override async Task OnParametersSetAsync()
     {
         isLoading = true;
         canView = false;
         showClaimButton = false;
-        shouldClearGuestCart = false;
 
         order = await Db.Orders
             .AsNoTracking()
@@ -234,9 +229,9 @@ else
         {
             showClaimButton = false;
 
-            // فقط اگر اتصال سفارش با موفقیت انجام شده باشد،
-            // سبد مهمان مرورگر پاک می‌شود.
-            shouldClearGuestCart = Claimed == 1;
+            // پس از اتصال موفق سفارش، سبد ذخیره‌شده در دیتابیس پاک می‌شود.
+            if (Claimed == 1)
+                await CartService.DeleteByOrderIdAsync(OrderId);
         }
         else if (validGuestToken)
         {
@@ -253,29 +248,6 @@ else
         }
 
         isLoading = false;
-    }
-
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        if (!shouldClearGuestCart || cartCleared)
-            return;
-
-        try
-        {
-            cartStorage ??= await JS.InvokeAsync<IJSObjectReference>(
-                "import",
-                "./js/orderCartStorage.js");
-
-            // Clear only the guest cart after a successful claim.
-            await cartStorage.InvokeVoidAsync("clearCart", "guest");
-
-            cartCleared = true;
-        }
-        catch (Exception ex)
-        {
-            Console.Error.WriteLine(
-                $"پاک‌سازی سبد مهمان ناموفق بود: {ex}");
-        }
     }
 
     private string GetStatusText(string status) => status switch
