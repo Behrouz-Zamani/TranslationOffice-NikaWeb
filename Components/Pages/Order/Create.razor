@@ -7,6 +7,8 @@
 @using TranslationOffice.Services
 @using Microsoft.EntityFrameworkCore
 @using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Identity
 @using Microsoft.JSInterop
 
 @inject ApplicationDbContext Db
@@ -14,6 +16,8 @@
 @inject OrderDocumentStorageService DocumentStorage
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject UserManager<ApplicationUser> UserManager
 
 @rendermode InteractiveServer
 
@@ -266,6 +270,21 @@ else
                             </span>
                         </div>
 
+                        <div class="mb-3">
+                            <label for="customerPhone" class="form-label fw-semibold">شماره موبایل برای اطلاع‌رسانی</label>
+                            <input id="customerPhone"
+                                   type="tel"
+                                   inputmode="numeric"
+                                   autocomplete="tel"
+                                   maxlength="13"
+                                   class="form-control"
+                                   placeholder="09123456789"
+                                   @bind="customerPhone"
+                                   @bind:event="oninput"
+                                   disabled="@isSubmitting" />
+                            <small class="text-muted">پیامک ثبت سفارش و تغییر وضعیت به این شماره ارسال می‌شود.</small>
+                        </div>
+
                         @if (cart.Any(x => !x.IsSubmitted))
                         {
                             <button type="button"
@@ -341,6 +360,7 @@ else
     private bool isCartLoaded;
 
     private string? errorMessage;
+    private string customerPhone = "";
 
     private string? activeOrderNumber;
     private int? activeOrderId;
@@ -358,6 +378,19 @@ else
             .Where(x => x.IsActive)
             .OrderBy(x => x.Name)
             .ToListAsync();
+
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var userId = authState.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+
+        if (!string.IsNullOrWhiteSpace(userId))
+        {
+            var currentUser = await UserManager.FindByIdAsync(userId);
+            if (currentUser != null)
+            {
+                customerPhone = NormalizeIranianMobile(
+                    currentUser.PhoneNumber ?? currentUser.UserName ?? "");
+            }
+        }
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -413,6 +446,8 @@ else
                         else
                         {
                             activeOrderNumber = existingOrder!.OrderNumber;
+                            if (!string.IsNullOrWhiteSpace(existingOrder.CustomerPhone))
+                                customerPhone = existingOrder.CustomerPhone;
                         }
                     }
                 }
@@ -660,6 +695,14 @@ else
         isSubmitting = true;
         errorMessage = null;
 
+        customerPhone = NormalizeIranianMobile(customerPhone);
+        if (!System.Text.RegularExpressions.Regex.IsMatch(customerPhone, @"^09\d{9}$"))
+        {
+            errorMessage = "شماره موبایل معتبر نیست. شماره را به شکل 09123456789 وارد کنید.";
+            isSubmitting = false;
+            return;
+        }
+
         string guestToken = activeGuestToken ?? GuestOrderToken.Generate();
 
         var savedDocuments = new List<OrderDocument>();
@@ -680,6 +723,7 @@ else
                         Guid.NewGuid().ToString("N")[..12].ToUpperInvariant(),
 
                     UserId = null,
+                    CustomerPhone = customerPhone,
                     GuestAccessTokenHash = GuestOrderToken.Hash(guestToken),
                     Status = "PendingPayment",
                     ProgressStatus = "Pending",
@@ -709,6 +753,8 @@ else
                     throw new InvalidOperationException(
                         "توکن دسترسی سفارش معتبر نیست. امکان افزودن اطلاعات وجود ندارد.");
                 }
+
+                order.CustomerPhone = customerPhone;
 
                 if (order.Status != "PendingPayment")
                 {
@@ -878,6 +924,29 @@ else
             return;
 
         await cartStorage.InvokeVoidAsync("clearCart");
+    }
+
+    private static string NormalizeIranianMobile(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return "";
+
+        var normalized = value.Trim()
+            .Replace("۰", "0").Replace("۱", "1").Replace("۲", "2")
+            .Replace("۳", "3").Replace("۴", "4").Replace("۵", "5")
+            .Replace("۶", "6").Replace("۷", "7").Replace("۸", "8")
+            .Replace("۹", "9").Replace("٠", "0").Replace("١", "1")
+            .Replace("٢", "2").Replace("٣", "3").Replace("٤", "4")
+            .Replace("٥", "5").Replace("٦", "6").Replace("٧", "7")
+            .Replace("٨", "8").Replace("٩", "9");
+
+        normalized = new string(normalized.Where(char.IsDigit).ToArray());
+
+        if (normalized.StartsWith("0098")) normalized = "0" + normalized[4..];
+        else if (normalized.StartsWith("98") && normalized.Length == 12) normalized = "0" + normalized[2..];
+        else if (normalized.Length == 10 && normalized.StartsWith("9")) normalized = "0" + normalized;
+
+        return normalized;
     }
 
     private static string FormatFileSize(long size)
