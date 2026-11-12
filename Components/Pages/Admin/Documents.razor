@@ -31,6 +31,12 @@ else
                         <input class="form-control" @bind="form.Name" />
                     </div>
 
+                    <div class="col-12">
+                        <label class="form-label">توضیحات مدرک</label>
+                        <textarea class="form-control" rows="3" @bind="form.Description"
+                                  placeholder="توضیح کوتاهی درباره این مدرک و خدمات ترجمه آن بنویسید..."></textarea>
+                    </div>
+
                     <div class="col-md-6">
                         <label class="form-label">نوع قیمت‌گذاری</label>
                         <select class="form-select" @bind="form.PricingType">
@@ -178,6 +184,7 @@ else
         {
             Id = doc.Id,
             Name = doc.Name,
+            Description = doc.Description,
             PricingType = doc.PricingType,
             BasePrice = doc.BasePrice,
             FreeUnits = doc.FreeUnits,
@@ -207,6 +214,7 @@ else
             if (existing != null)
             {
                 existing.Name = form.Name;
+                existing.Description = form.Description;
                 existing.PricingType = form.PricingType;
                 existing.BasePrice = form.BasePrice;
                 existing.FreeUnits = form.FreeUnits;
