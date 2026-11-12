@@ -2,8 +2,6 @@
 @page "/order/cart"
 @page "/order/product/{DocumentId:int}"
 
-@implements IDisposable
-
 @using System.IO
 @using System.Text.Json
 @using TranslationOffice.Data
@@ -21,8 +19,6 @@
 @inject NavigationManager Navigation
 @inject AuthenticationStateProvider AuthStateProvider
 @inject CartService CartService
-@inject PersistentComponentState PersistentState
-@inject IHttpContextAccessor HttpContextAccessor
 
 
 <div class="order-page-heading mb-4">
@@ -371,8 +367,6 @@ else
     private List<CartItem> cart = new();
 
     private string cartStorageKey = "guest";
-    private string guestCartKey = "";
-    private PersistingComponentStateSubscription guestCartKeySubscription;
 
     protected override async Task OnInitializedAsync()
     {
@@ -387,20 +381,9 @@ else
         }
         else
         {
-            if (!PersistentState.TryTakeFromJson<string>("NikaGuestCartKey", out var restoredGuestKey) ||
-                string.IsNullOrWhiteSpace(restoredGuestKey))
-            {
-                guestCartKey =
-                    HttpContextAccessor.HttpContext?.Request.Cookies["nika-cart-id"]
-                    ?? Guid.NewGuid().ToString("N");
-
-                guestCartKeySubscription =
-                    PersistentState.RegisterOnPersisting(PersistGuestCartKeyAsync);
-            }
-            else
-            {
-                guestCartKey = restoredGuestKey;
-            }
+            guestCartKey = CartService.GuestCartKey;
+            if (string.IsNullOrWhiteSpace(guestCartKey))
+                throw new InvalidOperationException("شناسه سبد مهمان در Layout مقداردهی نشده است.");
 
             cartStorageKey = $"guest:{guestCartKey}";
         }
@@ -460,12 +443,6 @@ else
         {
             isCartLoaded = true;
         }
-    }
-
-    private Task PersistGuestCartKeyAsync()
-    {
-        PersistentState.PersistAsJson("NikaGuestCartKey", guestCartKey);
-        return Task.CompletedTask;
     }
 
     protected override void OnParametersSet()
@@ -979,11 +956,6 @@ else
     private async Task ClearPersistentCartAsync()
     {
         await CartService.DeleteAsync(cartStorageKey);
-    }
-
-    public void Dispose()
-    {
-        guestCartKeySubscription.Dispose();
     }
 
     private static string FormatFileSize(long size)
