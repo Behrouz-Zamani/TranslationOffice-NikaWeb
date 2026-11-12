@@ -3,7 +3,9 @@
 @using TranslationOffice.Data
 @using TranslationOffice.Models
 @using Microsoft.EntityFrameworkCore
+@using Microsoft.AspNetCore.Components.Forms
 @inject ApplicationDbContext Db
+@inject DocumentSampleImageStorageService SampleImageStorage
 @rendermode InteractiveServer
 
 <h3 class="mb-4">مدیریت انواع اسناد و قیمت‌ها</h3>
@@ -35,6 +37,26 @@ else
                         <label class="form-label">توضیحات مدرک</label>
                         <textarea class="form-control" rows="3" @bind="form.Description"
                                   placeholder="توضیح کوتاهی درباره این مدرک و خدمات ترجمه آن بنویسید..."></textarea>
+                    </div>
+
+                    <div class="col-12">
+                        <label class="form-label">تصویر نمونه مدرک (اختیاری)</label>
+                        <InputFile OnChange="OnSampleImageSelected" accept=".jpg,.jpeg,.png" class="form-control" />
+                        <small class="text-muted d-block mt-1">فقط JPG یا PNG، حداکثر ۳ مگابایت. این تصویر برای نمایش به مشتری است و با فایل سفارش تفاوت دارد.</small>
+                        @if (!string.IsNullOrWhiteSpace(form.SampleImagePath))
+                        {
+                            <div class="mt-2">
+                                <img src="@form.SampleImagePath" alt="تصویر نمونه @form.Name" style="max-width:180px;max-height:140px;object-fit:contain;border:1px solid #ddd;border-radius:8px;padding:4px;" />
+                            </div>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(selectedSampleImageName))
+                        {
+                            <div class="small text-success mt-2">تصویر انتخاب‌شده: @selectedSampleImageName (پس از ذخیره ثبت می‌شود)</div>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(imageError))
+                        {
+                            <div class="text-danger small mt-2">@imageError</div>
+                        }
                     </div>
 
                     <div class="col-md-6">
@@ -153,6 +175,9 @@ else
     bool showForm = false;
     DocumentType? editingItem;
     DocumentType form = new();
+    IBrowserFile? selectedSampleImage;
+    string? selectedSampleImageName;
+    string? imageError;
 
     protected override async Task OnInitializedAsync()
     {
@@ -174,6 +199,9 @@ else
             IsActive = true,
             PricingType = PricingType.Fixed
         };
+        selectedSampleImage = null;
+        selectedSampleImageName = null;
+        imageError = null;
         showForm = true;
     }
 
@@ -185,6 +213,7 @@ else
             Id = doc.Id,
             Name = doc.Name,
             Description = doc.Description,
+            SampleImagePath = doc.SampleImagePath,
             PricingType = doc.PricingType,
             BasePrice = doc.BasePrice,
             FreeUnits = doc.FreeUnits,
@@ -194,7 +223,34 @@ else
             ForeignAffairsFee = doc.ForeignAffairsFee,
             IsActive = doc.IsActive
         };
+        selectedSampleImage = null;
+        selectedSampleImageName = null;
+        imageError = null;
         showForm = true;
+    }
+
+    async Task OnSampleImageSelected(InputFileChangeEventArgs e)
+    {
+        imageError = null;
+        selectedSampleImage = null;
+        selectedSampleImageName = null;
+
+        var file = e.File;
+        var extension = Path.GetExtension(file.Name);
+        if (!new[] { ".jpg", ".jpeg", ".png" }.Contains(extension, StringComparer.OrdinalIgnoreCase))
+        {
+            imageError = "فرمت تصویر باید JPG یا PNG باشد.";
+            return;
+        }
+
+        if (file.Size <= 0 || file.Size > DocumentSampleImageStorageService.MaxFileSize)
+        {
+            imageError = "حجم تصویر باید بیشتر از صفر و حداکثر ۳ مگابایت باشد.";
+            return;
+        }
+
+        selectedSampleImage = file;
+        selectedSampleImageName = Path.GetFileName(file.Name);
     }
 
     async Task Save()
@@ -202,39 +258,78 @@ else
         if (string.IsNullOrWhiteSpace(form.Name))
             return;
 
-        if (editingItem == null)
-        {
-            // افزودن جدید
-            Db.DocumentTypes.Add(form);
-        }
-        else
-        {
-            // ویرایش
-            var existing = await Db.DocumentTypes.FindAsync(editingItem.Id);
-            if (existing != null)
-            {
-                existing.Name = form.Name;
-                existing.Description = form.Description;
-                existing.PricingType = form.PricingType;
-                existing.BasePrice = form.BasePrice;
-                existing.FreeUnits = form.FreeUnits;
-                existing.PricePerExtraUnit = form.PricePerExtraUnit;
-                existing.ExtraCopyPrice = form.ExtraCopyPrice;
-                existing.JudiciaryFee = form.JudiciaryFee;
-                existing.ForeignAffairsFee = form.ForeignAffairsFee;
-                existing.IsActive = form.IsActive;
-            }
-        }
+        imageError = null;
+        string? newlySavedImagePath = null;
+        var previousImagePath = editingItem?.SampleImagePath;
 
-        await Db.SaveChangesAsync();
-        showForm = false;
-        await LoadData();
+        try
+        {
+            if (selectedSampleImage != null)
+            {
+                await using var input = selectedSampleImage.OpenReadStream(
+                    DocumentSampleImageStorageService.MaxFileSize);
+                await using var memory = new MemoryStream();
+                await input.CopyToAsync(memory);
+
+                newlySavedImagePath = await SampleImageStorage.SaveAsync(
+                    selectedSampleImage.Name,
+                    memory.ToArray());
+
+                form.SampleImagePath = newlySavedImagePath;
+            }
+
+            if (editingItem == null)
+            {
+                Db.DocumentTypes.Add(form);
+            }
+            else
+            {
+                var existing = await Db.DocumentTypes.FindAsync(editingItem.Id);
+                if (existing != null)
+                {
+                    existing.Name = form.Name;
+                    existing.Description = form.Description;
+                    existing.SampleImagePath = form.SampleImagePath;
+                    existing.PricingType = form.PricingType;
+                    existing.BasePrice = form.BasePrice;
+                    existing.FreeUnits = form.FreeUnits;
+                    existing.PricePerExtraUnit = form.PricePerExtraUnit;
+                    existing.ExtraCopyPrice = form.ExtraCopyPrice;
+                    existing.JudiciaryFee = form.JudiciaryFee;
+                    existing.ForeignAffairsFee = form.ForeignAffairsFee;
+                    existing.IsActive = form.IsActive;
+                }
+            }
+
+            await Db.SaveChangesAsync();
+
+            if (!string.IsNullOrWhiteSpace(previousImagePath) &&
+                previousImagePath != form.SampleImagePath)
+            {
+                await SampleImageStorage.DeleteAsync(previousImagePath);
+            }
+
+            showForm = false;
+            selectedSampleImage = null;
+            selectedSampleImageName = null;
+            await LoadData();
+        }
+        catch (Exception ex)
+        {
+            if (!string.IsNullOrWhiteSpace(newlySavedImagePath))
+                await SampleImageStorage.DeleteAsync(newlySavedImagePath);
+
+            imageError = "ذخیره اطلاعات مدرک انجام نشد: " + ex.GetBaseException().Message;
+        }
     }
 
     void Cancel()
     {
         showForm = false;
         editingItem = null;
+        selectedSampleImage = null;
+        selectedSampleImageName = null;
+        imageError = null;
     }
 
     async Task Delete(DocumentType doc)
