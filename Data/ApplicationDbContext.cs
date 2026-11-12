@@ -19,6 +19,7 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<Payment> Payments { get; set; }
     public DbSet<OrderDocument> OrderDocuments { get; set; }
     public DbSet<OrderDeliveryFile> OrderDeliveryFiles { get; set; }
+    public DbSet<ShoppingCart> ShoppingCarts { get; set; }
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -43,6 +44,15 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
 
             entity.Property(x => x.TotalPrice)
                 .HasPrecision(18, 0);
+        });
+
+        // سبدهای سفارش مشتری و مهمان
+        builder.Entity<ShoppingCart>(entity =>
+        {
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.CartKey).HasMaxLength(500).IsRequired();
+            entity.Property(x => x.CartJson).HasColumnType("nvarchar(max)").IsRequired();
+            entity.HasIndex(x => x.CartKey).IsUnique();
         });
 
         // پرداخت
