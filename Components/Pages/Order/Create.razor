@@ -411,19 +411,23 @@ else
                         var existingOrder = await Db.Orders.AsNoTracking()
                             .FirstOrDefaultAsync(x => x.Id == activeOrderId.Value);
 
-                        var tokenIsValid =
+                        var isCurrentUserOwner =
+                            !string.IsNullOrWhiteSpace(userId) &&
+                            existingOrder?.UserId == userId;
+
+                        var isValidGuestOrder =
                             existingOrder != null &&
                             existingOrder.UserId == null &&
                             GuestOrderToken.Verify(activeGuestToken, existingOrder.GuestAccessTokenHash);
 
-                        if (!tokenIsValid)
+                        if (!isCurrentUserOwner && !isValidGuestOrder)
                         {
                             cart.Clear();
                             activeOrderId = null;
                             activeGuestToken = null;
                             activeOrderNumber = null;
                             await ClearPersistentCartAsync();
-                            errorMessage = "سفارش قبلی به حساب کاربری متصل شده یا اطلاعات دسترسی آن معتبر نیست. سبد مهمان پاک شد.";
+                            errorMessage = "سفارش قبلی متعلق به این حساب کاربری نیست یا اطلاعات دسترسی آن معتبر نیست. سبد قبلی پاک شد.";
                         }
                         else
                         {
@@ -746,7 +750,15 @@ else
         isSubmitting = true;
         errorMessage = null;
 
-        string guestToken = activeGuestToken ?? GuestOrderToken.Generate();
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var currentUser = authState.User;
+        var currentUserId = currentUser.Identity?.IsAuthenticated == true
+            ? currentUser.FindFirst(ClaimTypes.NameIdentifier)?.Value
+            : null;
+
+        var guestToken = currentUserId == null
+            ? activeGuestToken ?? GuestOrderToken.Generate()
+            : null;
 
         var savedDocuments = new List<OrderDocument>();
 
@@ -765,8 +777,12 @@ else
                     OrderNumber = "TR-" +
                         Guid.NewGuid().ToString("N")[..12].ToUpperInvariant(),
 
-                    UserId = null,
-                    GuestAccessTokenHash = GuestOrderToken.Hash(guestToken),
+                    // سفارش مشتری واردشده مستقیماً به حساب او متصل می‌شود.
+                    // فقط سفارش مهمان توکن دسترسی مستقل دارد.
+                    UserId = currentUserId,
+                    GuestAccessTokenHash = currentUserId == null
+                        ? GuestOrderToken.Hash(guestToken!)
+                        : null,
                     Status = "PendingPayment",
                     ProgressStatus = "Pending",
                     CreatedAt = DateTime.Now
@@ -780,20 +796,21 @@ else
                     .Include(x => x.Items)
                     .FirstOrDefaultAsync(x => x.Id == activeOrderId!.Value)
                     ?? throw new InvalidOperationException(
-                        "سفارش مهمان قبلی پیدا نشد.");
+                        "سفارش قبلی پیدا نشد.");
 
-                if (order.UserId != null)
+                var isCurrentUserOwner =
+                    !string.IsNullOrWhiteSpace(currentUserId) &&
+                    order.UserId == currentUserId;
+
+                var isValidGuestOrder =
+                    currentUserId == null &&
+                    order.UserId == null &&
+                    GuestOrderToken.Verify(guestToken, order.GuestAccessTokenHash);
+
+                if (!isCurrentUserOwner && !isValidGuestOrder)
                 {
                     throw new InvalidOperationException(
-                        "این سفارش قبلاً به حساب کاربری متصل شده است. برای ثبت سفارش جدید، سبد جدید ایجاد کنید.");
-                }
-
-                if (!GuestOrderToken.Verify(
-                    guestToken,
-                    order.GuestAccessTokenHash))
-                {
-                    throw new InvalidOperationException(
-                        "توکن دسترسی سفارش معتبر نیست. امکان افزودن اطلاعات وجود ندارد.");
+                        "این سفارش متعلق به حساب فعلی نیست یا توکن دسترسی سفارش مهمان معتبر نیست.");
                 }
 
                 if (order.Status != "PendingPayment")
@@ -896,7 +913,7 @@ else
 
             activeOrderId = order.Id;
             activeOrderNumber = order.OrderNumber;
-            activeGuestToken = guestToken;
+            activeGuestToken = currentUserId == null ? guestToken : null;
 
             foreach (var item in pendingItems)
             {
@@ -911,8 +928,11 @@ else
 
             await SavePersistentCartAsync();
 
-            Navigation.NavigateTo(
-                $"/order/success/{order.Id}?token={Uri.EscapeDataString(guestToken)}");
+            var successUrl = currentUserId != null
+                ? $"/order/success/{order.Id}"
+                : $"/order/success/{order.Id}?token={Uri.EscapeDataString(guestToken!)}";
+
+            Navigation.NavigateTo(successUrl);
         }
         catch (Exception ex)
         {
