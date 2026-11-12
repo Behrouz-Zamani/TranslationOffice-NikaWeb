@@ -1,4 +1,5 @@
 ﻿@page "/order/create"
+@page "/order/product/{DocumentId:int}"
 
 @using System.IO
 @using System.Text.Json
@@ -17,7 +18,18 @@
 
 @rendermode InteractiveServer
 
-<h3 class="mb-4">ثبت سفارش ترجمه رسمی</h3>
+<div class="order-page-heading mb-4">
+    <div>
+        <span class="order-eyebrow">NIKA TRANSLATION</span>
+        <h3 class="mb-1">ثبت سفارش ترجمه رسمی</h3>
+        <p class="text-muted mb-0">مدرک موردنظر را انتخاب کنید و جزئیات سفارش را ثبت کنید.</p>
+    </div>
+    <div class="order-step-indicator">
+        <span class="active">۱. انتخاب مدرک</span>
+        <span>۲. ثبت جزئیات</span>
+        <span>۳. ثبت سفارش</span>
+    </div>
+</div>
 
 @if (documents == null || !isCartLoaded)
 {
@@ -40,147 +52,107 @@ else
 
     <div class="row">
 
-        <div class="col-md-6">
-            <div class="card mb-4">
-                <div class="card-header">انتخاب مدرک</div>
-
-                <div class="card-body">
-
-                    <div class="mb-3">
-                        <label class="form-label">نوع مدرک</label>
-
-                        <select class="form-select" @onchange="OnDocumentChanged">
-                            <option value="">انتخاب کنید...</option>
-
-                            @foreach (var doc in documents)
-                            {
-                                <option value="@doc.Id">@doc.Name</option>
-                            }
-                        </select>
+<div class="col-lg-7">
+            @if (DocumentId.HasValue && selectedDoc != null)
+            {
+                <div class="order-detail-card">
+                    <button type="button" class="btn btn-link order-back-link px-0 mb-3" @onclick="BackToProducts">
+                        <i class="bi bi-arrow-right ms-1"></i> بازگشت به فهرست مدارک
+                    </button>
+                    <div class="order-detail-hero">
+                        <div class="order-product-icon large"><i class="@GetDocumentIcon(selectedDoc)"></i></div>
+                        <div>
+                            <span class="order-eyebrow">جزئیات مدرک انتخابی</span>
+                            <h4 class="mb-2">@selectedDoc.Name</h4>
+                            <span class="order-type-pill">@GetPricingTypeText(selectedDoc)</span>
+                        </div>
                     </div>
-
-                    @if (selectedDoc != null)
-                    {
+                    <div class="order-description-box mt-4">
+                        <h6><i class="bi bi-info-circle ms-2"></i>درباره این مدرک</h6>
+                        <p class="mb-0">@GetDocumentDescription(selectedDoc)</p>
+                    </div>
+                    <div class="order-options-section mt-4">
+                        <h5 class="mb-3">تنظیمات و گزینه‌های سفارش</h5>
                         @if (selectedDoc.PricingType != PricingType.Fixed)
                         {
                             <div class="mb-3">
-                                <label class="form-label">
-                                    @(selectedDoc.PricingType == PricingType.PerLine
-                                        ? "تعداد سطر"
-                                        : "تعداد صفحه")
-                                </label>
-
-                                <input type="number"
-                                       class="form-control"
-                                       value="@units"
-                                       @oninput="OnUnitsChanged"
-                                       min="1" />
+                                <label class="form-label">@(selectedDoc.PricingType == PricingType.PerLine ? "تعداد سطر" : "تعداد صفحه")</label>
+                                <input type="number" class="form-control order-option-input" value="@units" @oninput="OnUnitsChanged" min="1" />
                             </div>
                         }
-
                         <div class="mb-3">
                             <label class="form-label">تعداد نسخه</label>
-
-                            <input type="number"
-                                   class="form-control"
-                                   value="@quantity"
-                                   @oninput="OnQuantityChanged"
-                                   min="1" />
+                            <input type="number" class="form-control order-option-input" value="@quantity" @oninput="OnQuantityChanged" min="1" />
                         </div>
-
-                        <div class="form-check mb-2">
-                            <input class="form-check-input"
-                                   type="checkbox"
-                                   id="judiciary"
-                                   checked="@needJudiciary"
-                                   @onchange="OnJudiciaryChanged" />
-
-                            <label class="form-check-label" for="judiciary">
-                                نیاز به تأیید دادگستری
+                        <div class="order-extra-options">
+                            <label class="order-option-check">
+                                <input type="checkbox" checked="@needJudiciary" @onchange="OnJudiciaryChanged" />
+                                <span><strong>تأیید دادگستری</strong><small>در صورت نیاز، تأییدیه دادگستری نیز دریافت شود.</small></span>
+                                <b>@selectedDoc.JudiciaryFee.ToString("N0") تومان</b>
+                            </label>
+                            <label class="order-option-check">
+                                <input type="checkbox" checked="@needForeignAffairs" @onchange="OnForeignChanged" />
+                                <span><strong>تأیید وزارت امور خارجه</strong><small>در صورت نیاز، تأییدیه وزارت امور خارجه نیز دریافت شود.</small></span>
+                                <b>@selectedDoc.ForeignAffairsFee.ToString("N0") تومان</b>
                             </label>
                         </div>
-
-                        <div class="form-check mb-3">
-                            <input class="form-check-input"
-                                   type="checkbox"
-                                   id="foreign"
-                                   checked="@needForeignAffairs"
-                                   @onchange="OnForeignChanged" />
-
-                            <label class="form-check-label" for="foreign">
-                                نیاز به تأیید وزارت خارجه
-                            </label>
-                        </div>
-
-                        <hr />
-
-                        <div class="mb-3">
-                            <label class="form-label fw-bold">
-                                بارگذاری تصویر یا فایل مدرک
-                            </label>
-
-                            <InputFile OnChange="OnFilesSelected"
-                                       multiple
-                                       accept=".pdf,.jpg,.jpeg,.png"
-                                       class="form-control"
-                                       disabled="@isSubmitting" />
-
-                            <small class="text-muted d-block mt-2">
-                                فرمت‌های مجاز: PDF، JPG، JPEG و PNG
-                                <br />
-                                حداکثر حجم هر فایل: ۱۰ مگابایت
-                                <br />
-                                حداکثر ۱۰ فایل و مجموعاً ۳۰ مگابایت برای هر مدرک
-                            </small>
-                        </div>
-
+                    </div>
+                    <div class="order-upload-box mt-4">
+                        <h6 class="mb-2"><i class="bi bi-cloud-arrow-up ms-2"></i>بارگذاری فایل مدرک</h6>
+                        <p class="text-muted small mb-3">تصویر یا فایل مدرک را برای بررسی و ترجمه بارگذاری کنید.</p>
+                        <InputFile OnChange="OnFilesSelected" multiple accept=".pdf,.jpg,.jpeg,.png" class="form-control" disabled="@isSubmitting" />
+                        <small class="text-muted d-block mt-2">فرمت‌های مجاز: PDF، JPG، JPEG و PNG؛ حداکثر ۱۰ مگابایت برای هر فایل، حداکثر ۱۰ فایل و مجموعاً ۳۰ مگابایت برای هر مدرک.</small>
                         @if (selectedFiles.Any())
                         {
-                            <div class="border rounded p-3 mb-3">
-                                <strong>فایل‌های انتخاب‌شده:</strong>
-
-                                <ul class="list-group list-group-flush mt-2">
-                                    @foreach (var file in selectedFiles)
-                                    {
-                                        <li class="list-group-item d-flex justify-content-between align-items-center px-0">
-                                            <span class="text-break">
-                                                @file.Name
-                                                <small class="text-muted">
-                                                    (@FormatFileSize(file.Size))
-                                                </small>
-                                            </span>
-
-                                            <button type="button"
-                                                    class="btn btn-sm btn-outline-danger"
-                                                    @onclick="() => RemoveSelectedFile(file)">
-                                                حذف
-                                            </button>
-                                        </li>
-                                    }
-                                </ul>
-                            </div>
+                            <ul class="list-group list-group-flush mt-3">
+                                @foreach (var file in selectedFiles)
+                                {
+                                    <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                                        <span class="text-break">@file.Name <small class="text-muted">(@FormatFileSize(file.Size))</small></span>
+                                        <button type="button" class="btn btn-sm btn-outline-danger" @onclick="() => RemoveSelectedFile(file)">حذف</button>
+                                    </li>
+                                }
+                            </ul>
                         }
-
-                        <div class="alert alert-info d-flex justify-content-between align-items-center">
-                            <strong>قیمت نهایی:</strong>
-
-                            <span class="fs-4 fw-bold">
-                                @currentPrice.ToString("N0") تومان
-                            </span>
+                    </div>
+                    <div class="order-price-summary mt-4">
+                        <div><span>مبلغ این مدرک</span><small>بر اساس گزینه‌های انتخاب‌شده</small></div>
+                        <strong>@currentPrice.ToString("N0") <small>تومان</small></strong>
+                    </div>
+                    <button type="button" class="btn order-add-button w-100 mt-3" @onclick="AddToCart" disabled="@isSubmitting">
+                        <i class="bi bi-cart-plus ms-2"></i> افزودن به سبد سفارش
+                    </button>
+                </div>
+            }
+            else
+            {
+                <div class="order-products-heading mb-3">
+                    <div><h5 class="mb-1">چه مدرکی برای ترجمه دارید؟</h5><p class="text-muted mb-0 small">برای مشاهده توضیحات و گزینه‌های هر مدرک، کارت آن را انتخاب کنید.</p></div>
+                    <span class="order-count">@documents.Count مورد</span>
+                </div>
+                <div class="row g-3">
+                    @foreach (var doc in documents)
+                    {
+                        <div class="col-md-6">
+                            <button type="button" class="order-product-card w-100 text-start" @onclick="() => GoToProduct(doc)">
+                                <div class="order-product-card-top">
+                                    <div class="order-product-icon"><i class="@GetDocumentIcon(doc)"></i></div>
+                                    <span class="order-card-arrow"><i class="bi bi-arrow-left"></i></span>
+                                </div>
+                                <h6>@doc.Name</h6>
+                                <p>@GetDocumentShortDescription(doc)</p>
+                                <div class="order-product-card-bottom">
+                                    <span>@GetPricingTypeText(doc)</span>
+                                    <strong>از @doc.BasePrice.ToString("N0") تومان</strong>
+                                </div>
+                            </button>
                         </div>
-
-                        <button type="button"
-                                class="btn btn-primary w-100"
-                                @onclick="AddToCart"
-                                disabled="@isSubmitting">
-                            افزودن به سبد
-                        </button>
                     }
                 </div>
-            </div>
+            }
         </div>
 
-        <div class="col-md-6">
+                <div class="col-md-6">
             <div class="card mb-4">
 
                 <div class="card-header">
