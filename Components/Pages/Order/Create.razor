@@ -61,7 +61,14 @@ else
                         <i class="bi bi-arrow-right ms-1"></i> بازگشت به فهرست مدارک
                     </button>
                     <div class="order-detail-hero">
-                        <div class="order-product-icon large"><i class="@GetDocumentIcon(selectedDoc)"></i></div>
+                        @if (!string.IsNullOrWhiteSpace(selectedDoc.SampleImagePath))
+                        {
+                            <img class="order-document-sample-image" src="@selectedDoc.SampleImagePath" alt="نمونه @selectedDoc.Name" />
+                        }
+                        else
+                        {
+                            <div class="order-product-icon large"><i class="@GetDocumentIcon(selectedDoc)"></i></div>
+                        }
                         <div>
                             <span class="order-eyebrow">جزئیات مدرک انتخابی</span>
                             <h4 class="mb-2">@selectedDoc.Name</h4>
@@ -137,7 +144,14 @@ else
                         <div class="col-md-6">
                             <button type="button" class="order-product-card w-100 text-start" @onclick="() => GoToProduct(doc)">
                                 <div class="order-product-card-top">
-                                    <div class="order-product-icon"><i class="@GetDocumentIcon(doc)"></i></div>
+                                    @if (!string.IsNullOrWhiteSpace(doc.SampleImagePath))
+                                    {
+                                        <img class="order-product-card-image" src="@doc.SampleImagePath" alt="نمونه @doc.Name" />
+                                    }
+                                    else
+                                    {
+                                        <div class="order-product-icon"><i class="@GetDocumentIcon(doc)"></i></div>
+                                    }
                                     <span class="order-card-arrow"><i class="bi bi-arrow-left"></i></span>
                                 </div>
                                 <h6>@doc.Name</h6>
