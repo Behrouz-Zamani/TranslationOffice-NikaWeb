@@ -1,4 +1,5 @@
 ﻿@page "/order/create"
+@page "/order/cart"
 @page "/order/product/{DocumentId:int}"
 
 @using System.IO
@@ -22,14 +23,17 @@
 <div class="order-page-heading mb-4">
     <div>
         <span class="order-eyebrow">NIKA TRANSLATION</span>
-        <h3 class="mb-1">ثبت سفارش ترجمه رسمی</h3>
-        <p class="text-muted mb-0">مدرک موردنظر را انتخاب کنید و جزئیات سفارش را ثبت کنید.</p>
+        <h3 class="mb-1">@(isCartPage ? "سبد سفارش شما" : "ثبت سفارش ترجمه رسمی")</h3>
+        <p class="text-muted mb-0">@(isCartPage ? "مدارک انتخاب‌شده و جزئیات سفارش خود را بررسی کنید." : "مدرک موردنظر را انتخاب کنید و جزئیات سفارش را ثبت کنید.")</p>
     </div>
-    <div class="order-step-indicator">
-        <span class="@(DocumentId.HasValue ? "" : "active")">۱. انتخاب مدرک</span>
-        <span class="@(DocumentId.HasValue ? "active" : "")">۲. ثبت جزئیات</span>
-        <span>۳. ثبت سفارش</span>
-    </div>
+    @if (!isCartPage)
+    {
+        <div class="order-step-indicator">
+            <span class="@(DocumentId.HasValue ? "" : "active")">۱. انتخاب مدرک</span>
+            <span class="@(DocumentId.HasValue ? "active" : "")">۲. ثبت جزئیات</span>
+            <span>۳. ثبت سفارش</span>
+        </div>
+    }
 </div>
 
 @if (documents == null || !isCartLoaded)
@@ -53,6 +57,8 @@ else
 
     <div class="row">
 
+@if (!isCartPage)
+{
 <div class="col-lg-7">
             @if (DocumentId.HasValue && selectedDoc != null)
             {
@@ -172,11 +178,17 @@ else
             }
         </div>
 
-                <div class="col-lg-5">
+}
+
+                <div class="@(isCartPage ? "col-12" : "col-lg-5")">
             <div class="card mb-4">
 
-                <div class="card-header">
-                    سبد سفارش
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <strong>سبد سفارش</strong>
+                    @if (isCartPage)
+                    {
+                        <a href="/order/create" class="btn btn-sm btn-outline-success">افزودن مدرک جدید</a>
+                    }
                 </div>
 
                 <div class="card-body">
@@ -334,6 +346,8 @@ else
 
     private bool isSubmitting;
     private bool isCartLoaded;
+
+    private bool isCartPage => Navigation.ToBaseRelativePath(Navigation.Uri).Split('?')[0].TrimEnd('/').Equals("order/cart", StringComparison.OrdinalIgnoreCase);
 
     private string? errorMessage;
 
