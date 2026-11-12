@@ -65,6 +65,12 @@
                                     سفارش‌های من
                                 </NavLink>
                             </li>
+                            <li class="nav-item">
+                                <NavLink class="nav-link" href="/account/profile" @onclick="CloseMenu">
+                                    <span class="menu-icon">♙</span>
+                                    پروفایل من
+                                </NavLink>
+                            </li>
                         }
 
                         @if (isAdmin)
@@ -155,6 +161,7 @@
                     <a href="/">صفحه اصلی</a>
                     <a href="/order/create">ثبت سفارش</a>
                     <a href="/account/orders">سفارش‌های من</a>
+                    <a href="/account/profile">پروفایل من</a>
                 </div>
                 <div class="footer-contact">
                     <strong>خدمات ما</strong>
