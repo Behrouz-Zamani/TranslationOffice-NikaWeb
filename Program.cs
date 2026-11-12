@@ -117,6 +117,7 @@ app.Use(async (context, next) =>
             });
     }
 
+    context.Items["NikaGuestCartKey"] = guestCartId;
     await next();
 });
 
