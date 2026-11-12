@@ -25,8 +25,8 @@
         <p class="text-muted mb-0">مدرک موردنظر را انتخاب کنید و جزئیات سفارش را ثبت کنید.</p>
     </div>
     <div class="order-step-indicator">
-        <span class="active">۱. انتخاب مدرک</span>
-        <span>۲. ثبت جزئیات</span>
+        <span class="@(DocumentId.HasValue ? "" : "active")">۱. انتخاب مدرک</span>
+        <span class="@(DocumentId.HasValue ? "active" : "")">۲. ثبت جزئیات</span>
         <span>۳. ثبت سفارش</span>
     </div>
 </div>
@@ -152,7 +152,7 @@ else
             }
         </div>
 
-                <div class="col-md-6">
+                <div class="col-lg-5">
             <div class="card mb-4">
 
                 <div class="card-header">
@@ -446,6 +446,15 @@ else
     {
         if (!string.IsNullOrWhiteSpace(doc.Description))
             return doc.Description;
+
+        if (doc.Name.Contains("شناسنامه"))
+            return "ترجمه رسمی شناسنامه برای ارائه به سفارت‌ها، دانشگاه‌ها و سازمان‌های داخل یا خارج از کشور. امکان انتخاب تأیید دادگستری و وزارت امور خارجه نیز وجود دارد.";
+
+        if (doc.Name.Contains("ریزنمرات"))
+            return "ترجمه رسمی ریزنمرات و سوابق تحصیلی برای ارائه به دانشگاه‌ها، مراکز آموزشی و مراجع ارزیابی مدارک. هزینه بر اساس تعداد صفحات محاسبه می‌شود.";
+
+        if (doc.Name.Contains("قرارداد"))
+            return "ترجمه رسمی قراردادها و اسناد توافقی برای ارائه به مراجع قانونی، شرکت‌ها و سازمان‌ها. هزینه بر اساس تعداد سطرهای متن محاسبه می‌شود.";
 
         return doc.PricingType switch
         {
