@@ -1,4 +1,4 @@
-﻿@inherits LayoutComponentBase
+@inherits LayoutComponentBase
 @implements IAsyncDisposable
 
 @using System.Security.Claims
@@ -217,8 +217,8 @@
             await cartStorageModule.InvokeVoidAsync(
                 "subscribeCartChanges", cartDotNetReference);
 
-            var savedJson = await cartStorageModule.InvokeAsync<string?>("loadCart");
-            UpdateCartBadge(savedJson, false);
+            var itemCount = await cartStorageModule.InvokeAsync<int>("loadCartCount");
+            UpdateCartBadge(itemCount, false);
             StateHasChanged();
         }
         catch (Exception ex)
@@ -228,9 +228,9 @@
     }
 
     [JSInvokable]
-    public async Task OnCartChanged(string? savedJson)
+    public async Task OnCartChanged(int itemCount)
     {
-        UpdateCartBadge(savedJson, true);
+        UpdateCartBadge(itemCount, true);
         await InvokeAsync(StateHasChanged);
 
         await Task.Delay(650);
@@ -238,28 +238,9 @@
         await InvokeAsync(StateHasChanged);
     }
 
-    private void UpdateCartBadge(string? savedJson, bool animate)
+    private void UpdateCartBadge(int itemCount, bool animate)
     {
-        cartItemCount = 0;
-
-        if (!string.IsNullOrWhiteSpace(savedJson))
-        {
-            try
-            {
-                using var document = JsonDocument.Parse(savedJson);
-
-                if (document.RootElement.TryGetProperty("Items", out var items) &&
-                    items.ValueKind == JsonValueKind.Array)
-                {
-                    cartItemCount = items.GetArrayLength();
-                }
-            }
-            catch
-            {
-                cartItemCount = 0;
-            }
-        }
-
+        cartItemCount = Math.Max(0, itemCount);
         cartAnimation = animate && cartItemCount > 0;
     }
 
