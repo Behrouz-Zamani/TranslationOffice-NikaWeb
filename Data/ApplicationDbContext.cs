@@ -39,11 +39,6 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             entity.Property(x => x.GuestAccessTokenHash)
                 .HasMaxLength(64);
 
-            entity.Property(x => x.CustomerPhone)
-                .HasMaxLength(20)
-                .IsRequired()
-                .HasDefaultValue("");
-
             entity.HasIndex(x => x.GuestAccessTokenHash);
 
             entity.Property(x => x.TotalPrice)
