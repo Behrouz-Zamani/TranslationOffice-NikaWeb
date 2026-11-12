@@ -10,6 +10,8 @@
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject IDbContextFactory<ApplicationDbContext> DbFactory
 @inject CartService CartService
+@inject PersistentComponentState PersistentState
+@inject IHttpContextAccessor HttpContextAccessor
 
 <HeadContent>
     <link href="/css/mainlayout.css?v=4" rel="stylesheet" />
@@ -199,6 +201,7 @@
     private int cartItemCount;
     private string cartStorageKey = "guest";
     private bool cartAnimation;
+    private PersistingComponentStateSubscription guestCartKeySubscription;
 
     protected override async Task OnInitializedAsync()
     {
@@ -208,10 +211,26 @@
         var user = authState.User;
         var userId = user.FindFirstValue(ClaimTypes.NameIdentifier);
 
-        cartStorageKey = user.Identity?.IsAuthenticated == true &&
-                         !string.IsNullOrWhiteSpace(userId)
-            ? $"user:{userId}"
-            : "guest";
+        if (user.Identity?.IsAuthenticated == true &&
+            !string.IsNullOrWhiteSpace(userId))
+        {
+            cartStorageKey = $"user:{userId}";
+        }
+        else
+        {
+            if (!PersistentState.TryTakeFromJson<string>("NikaGuestCartKey", out var guestKey) ||
+                string.IsNullOrWhiteSpace(guestKey))
+            {
+                guestKey = HttpContextAccessor.HttpContext?.Request.Cookies["nika-cart-id"]
+                    ?? Guid.NewGuid().ToString("N");
+
+                guestCartKeySubscription =
+                    PersistentState.RegisterOnPersisting(PersistGuestCartKeyAsync);
+            }
+
+            CartService.GuestCartKey = guestKey;
+            cartStorageKey = $"guest:{guestKey}";
+        }
 
         cartItemCount = await CartService.GetCountAsync(cartStorageKey);
 
@@ -229,6 +248,12 @@
         isAdmin = role == "Admin";
         isTranslator = role == "Translator";
         isCustomer = role == "Customer";
+    }
+
+    private Task PersistGuestCartKeyAsync()
+    {
+        PersistentState.PersistAsJson("NikaGuestCartKey", CartService.GuestCartKey);
+        return Task.CompletedTask;
     }
 
     private void HandleCartChanged(string storageKey, int itemCount)
@@ -254,6 +279,7 @@
     public void Dispose()
     {
         CartService.CartChanged -= HandleCartChanged;
+        guestCartKeySubscription.Dispose();
     }
 
     private void ToggleMenu() => isMenuOpen = !isMenuOpen;
