@@ -229,7 +229,7 @@ else
         showForm = true;
     }
 
-    async Task OnSampleImageSelected(InputFileChangeEventArgs e)
+    void OnSampleImageSelected(InputFileChangeEventArgs e)
     {
         imageError = null;
         selectedSampleImage = null;
@@ -261,6 +261,7 @@ else
         imageError = null;
         string? newlySavedImagePath = null;
         var previousImagePath = editingItem?.SampleImagePath;
+        var databaseSaved = false;
 
         try
         {
@@ -302,11 +303,19 @@ else
             }
 
             await Db.SaveChangesAsync();
+            databaseSaved = true;
 
             if (!string.IsNullOrWhiteSpace(previousImagePath) &&
                 previousImagePath != form.SampleImagePath)
             {
-                await SampleImageStorage.DeleteAsync(previousImagePath);
+                try
+                {
+                    await SampleImageStorage.DeleteAsync(previousImagePath);
+                }
+                catch
+                {
+                    // A stale old image is safer than breaking the saved document update.
+                }
             }
 
             showForm = false;
@@ -316,8 +325,17 @@ else
         }
         catch (Exception ex)
         {
-            if (!string.IsNullOrWhiteSpace(newlySavedImagePath))
-                await SampleImageStorage.DeleteAsync(newlySavedImagePath);
+            if (!databaseSaved && !string.IsNullOrWhiteSpace(newlySavedImagePath))
+            {
+                try
+                {
+                    await SampleImageStorage.DeleteAsync(newlySavedImagePath);
+                }
+                catch
+                {
+                    // Preserve the original save error.
+                }
+            }
 
             imageError = "ذخیره اطلاعات مدرک انجام نشد: " + ex.GetBaseException().Message;
         }
@@ -339,6 +357,7 @@ else
         {
             Db.DocumentTypes.Remove(existing);
             await Db.SaveChangesAsync();
+            await SampleImageStorage.DeleteAsync(existing.SampleImagePath);
             await LoadData();
         }
     }
