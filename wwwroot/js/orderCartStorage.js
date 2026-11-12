@@ -4,6 +4,12 @@ const STORE_NAME = "GuestOrderCart";
 const CART_KEY = "ActiveGuestCart";
 const DB_VERSION = 1;
 
+function resolveCartKey(storageKey = "guest") {
+    return storageKey === "guest"
+        ? CART_KEY
+        : `${CART_KEY}:${storageKey}`;
+}
+
 function openDatabase() {
     return new Promise((resolve, reject) => {
         const request = indexedDB.open(DB_NAME, DB_VERSION);
@@ -21,19 +27,23 @@ function openDatabase() {
         };
 
         request.onerror = function () {
-            reject(request.error);
+            reject(request.error || new Error("IndexedDB open failed."));
+        };
+
+        request.onblocked = function () {
+            reject(new Error("IndexedDB is blocked by another open connection."));
         };
     });
 }
 
-export async function loadCart() {
+export async function loadCart(storageKey = "guest") {
     const db = await openDatabase();
 
     try {
         return await new Promise((resolve, reject) => {
             const transaction = db.transaction(STORE_NAME, "readonly");
             const store = transaction.objectStore(STORE_NAME);
-            const request = store.get(CART_KEY);
+            const request = store.get(resolveCartKey(storageKey));
 
             request.onsuccess = function () {
                 resolve(request.result ?? null);
@@ -49,8 +59,8 @@ export async function loadCart() {
     }
 }
 
-export async function loadCartCount() {
-    const json = await loadCart();
+export async function loadCartCount(storageKey = "guest") {
+    const json = await loadCart(storageKey);
     if (!json) return 0;
 
     try {
@@ -61,14 +71,14 @@ export async function loadCartCount() {
     }
 }
 
-export async function saveCart(json) {
+export async function saveCart(json, storageKey = "guest") {
     const db = await openDatabase();
 
     try {
         await new Promise((resolve, reject) => {
             const transaction = db.transaction(STORE_NAME, "readwrite");
 
-            transaction.objectStore(STORE_NAME).put(json, CART_KEY);
+            transaction.objectStore(STORE_NAME).put(json, resolveCartKey(storageKey));
 
             transaction.oncomplete = function () {
                 let itemCount = 0;
@@ -96,14 +106,14 @@ export async function saveCart(json) {
     }
 }
 
-export async function clearCart() {
+export async function clearCart(storageKey = "guest") {
     const db = await openDatabase();
 
     try {
         await new Promise((resolve, reject) => {
             const transaction = db.transaction(STORE_NAME, "readwrite");
 
-            transaction.objectStore(STORE_NAME).delete(CART_KEY);
+            transaction.objectStore(STORE_NAME).delete(resolveCartKey(storageKey));
 
             transaction.oncomplete = function () {
                 window.dispatchEvent(new CustomEvent("orderCartChanged", { detail: 0 }));
