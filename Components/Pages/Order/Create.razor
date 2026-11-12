@@ -141,7 +141,7 @@ else
                         <div><span>مبلغ این مدرک</span><small>بر اساس گزینه‌های انتخاب‌شده</small></div>
                         <strong>@currentPrice.ToString("N0") <small>تومان</small></strong>
                     </div>
-                    <button type="button" class="btn order-add-button w-100 mt-3" @onclick="AddToCart" disabled="@(isSubmitting || !isCartLoaded)">
+                    <button type="button" class="btn order-add-button w-100 mt-3" @onclick="AddToCart" disabled="@(isSubmitting || !isCartLoaded || cartLoadFailed)">
                         <i class="bi bi-cart-plus ms-2"></i> افزودن به سبد سفارش
                     </button>
                 </div>
@@ -354,6 +354,7 @@ else
 
     private bool isSubmitting;
     private bool isCartLoaded;
+    private bool cartLoadFailed;
 
     private bool isCartPage => Navigation.ToBaseRelativePath(Navigation.Uri).Split('?')[0].TrimEnd('/').Equals("order/cart", StringComparison.OrdinalIgnoreCase);
 
@@ -432,12 +433,16 @@ else
         try
         {
             cartStorage = await JS.InvokeAsync<IJSObjectReference>(
-                "import",
-                "./js/orderCartStorage.js");
+                    "import",
+                    "./js/orderCartStorage.js")
+                .AsTask()
+                .WaitAsync(TimeSpan.FromSeconds(12));
 
             var savedJson = await cartStorage.InvokeAsync<string?>(
-                "loadCart",
-                cartStorageKey);
+                    "loadCart",
+                    cartStorageKey)
+                .AsTask()
+                .WaitAsync(TimeSpan.FromSeconds(12));
 
             if (!string.IsNullOrWhiteSpace(savedJson))
             {
@@ -484,16 +489,23 @@ else
                 }
             }
         }
+        catch (TimeoutException)
+        {
+            errorMessage =
+                "بازیابی سبد سفارش بیش از حد طول کشید. صفحه را یک‌بار تازه‌سازی کنید.";
+            cartLoadFailed = true;
+        }
         catch (Exception ex)
         {
             errorMessage =
-                "بازیابی سبد سفارش از مرورگر ناموفق بود: " +
+                "بازیابی سبد سفارش ناموفق بود: " +
                 ex.GetBaseException().Message;
+            cartLoadFailed = true;
         }
         finally
         {
             isCartLoaded = true;
-            StateHasChanged();
+            await InvokeAsync(StateHasChanged);
         }
     }
 
