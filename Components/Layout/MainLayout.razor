@@ -1,9 +1,7 @@
 @inherits LayoutComponentBase
-@implements IAsyncDisposable
+@implements IDisposable
 
 @using System.Security.Claims
-@using System.Text.Json
-@using Microsoft.JSInterop
 @using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.EntityFrameworkCore
 @using TranslationOffice.Data
@@ -11,7 +9,7 @@
 
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject IDbContextFactory<ApplicationDbContext> DbFactory
-@inject IJSRuntime JS
+@inject CartService CartService
 
 <HeadContent>
     <link href="/css/mainlayout.css?v=4" rel="stylesheet" />
@@ -201,78 +199,11 @@
     private int cartItemCount;
     private string cartStorageKey = "guest";
     private bool cartAnimation;
-    private IJSObjectReference? cartStorageModule;
-    private DotNetObjectReference<MainLayout>? cartDotNetReference;
-
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        if (!firstRender)
-            return;
-
-        try
-        {
-            cartStorageModule = await JS.InvokeAsync<IJSObjectReference>(
-                "import", "./js/orderCartStorage.js");
-
-            cartDotNetReference = DotNetObjectReference.Create(this);
-            await cartStorageModule.InvokeVoidAsync(
-                "subscribeCartChanges", cartDotNetReference);
-
-            var itemCount = await cartStorageModule.InvokeAsync<int>(
-                "loadCartCount",
-                cartStorageKey);
-            UpdateCartBadge(itemCount, false);
-            StateHasChanged();
-        }
-        catch (Exception ex)
-        {
-            Console.Error.WriteLine($"Cart badge initialization failed: {ex.GetBaseException().Message}");
-        }
-    }
-
-    [JSInvokable]
-    public async Task OnCartChanged(string storageKey, int itemCount)
-    {
-        if (!string.Equals(storageKey, cartStorageKey, StringComparison.Ordinal))
-            return;
-
-        UpdateCartBadge(itemCount, true);
-        await InvokeAsync(StateHasChanged);
-
-        await Task.Delay(650);
-        cartAnimation = false;
-        await InvokeAsync(StateHasChanged);
-    }
-
-    private void UpdateCartBadge(int itemCount, bool animate)
-    {
-        cartItemCount = Math.Max(0, itemCount);
-        cartAnimation = animate && cartItemCount > 0;
-    }
-
-    public async ValueTask DisposeAsync()
-    {
-        if (cartStorageModule != null)
-        {
-            try
-            {
-                await cartStorageModule.InvokeVoidAsync("unsubscribeCartChanges");
-                await cartStorageModule.DisposeAsync();
-            }
-            catch
-            {
-                // The layout may already be disconnected.
-            }
-        }
-
-        cartDotNetReference?.Dispose();
-    }
-
-    private void ToggleMenu() => isMenuOpen = !isMenuOpen;
-    private void CloseMenu() => isMenuOpen = false;
 
     protected override async Task OnInitializedAsync()
     {
+        CartService.CartChanged += HandleCartChanged;
+
         var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
         var user = authState.User;
         var userId = user.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -282,12 +213,13 @@
             ? $"user:{userId}"
             : "guest";
 
+        cartItemCount = await CartService.GetCountAsync(cartStorageKey);
+
         if (user.Identity?.IsAuthenticated != true ||
             string.IsNullOrWhiteSpace(userId))
             return;
 
         await using var db = await DbFactory.CreateDbContextAsync();
-
         var role = await db.Users
             .AsNoTracking()
             .Where(x => x.Id == userId)
@@ -298,6 +230,34 @@
         isTranslator = role == "Translator";
         isCustomer = role == "Customer";
     }
+
+    private void HandleCartChanged(string storageKey, int itemCount)
+    {
+        if (!string.Equals(storageKey, cartStorageKey, StringComparison.Ordinal))
+            return;
+
+        _ = InvokeAsync(async () =>
+        {
+            cartItemCount = Math.Max(0, itemCount);
+            cartAnimation = cartItemCount > 0;
+            StateHasChanged();
+
+            if (cartAnimation)
+            {
+                await Task.Delay(650);
+                cartAnimation = false;
+                StateHasChanged();
+            }
+        });
+    }
+
+    public void Dispose()
+    {
+        CartService.CartChanged -= HandleCartChanged;
+    }
+
+    private void ToggleMenu() => isMenuOpen = !isMenuOpen;
+    private void CloseMenu() => isMenuOpen = false;
 
     private static string GetInitial(string? name)
     {
