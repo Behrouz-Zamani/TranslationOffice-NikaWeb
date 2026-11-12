@@ -7,11 +7,13 @@
 @using Microsoft.EntityFrameworkCore
 @using TranslationOffice.Data
 @using TranslationOffice.Models
+@using TranslationOffice.Services
 
 @attribute [Authorize]
 @rendermode InteractiveServer
 
 @inject ApplicationDbContext Db
+@inject BankTransferPaymentService BankTransferService
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject NavigationManager Navigation
 
@@ -167,7 +169,9 @@ else if (order != null)
                                 <th>وضعیت</th>
                                 <th>شناسه درگاه</th>
                                 <th>شماره پیگیری</th>
-                                <th>توضیحات</th>
+                                <th>رسید واریز</th>
+                                <th>توضیحات / بررسی</th>
+                                <th>عملیات</th>
                             </tr>
                         </thead>
 
@@ -193,23 +197,40 @@ else if (order != null)
 
                                     <td>@(payment.Authority ?? "-")</td>
 
-                                    <td>@(payment.ReferenceId ?? "-")</td>
+                                    <td>@(payment.TransferReference ?? payment.ReferenceId ?? "-")</td>
+
+                                    <td>
+                                        @if (!string.IsNullOrWhiteSpace(payment.ReceiptStoredFileName))
+                                        {
+                                            <a href="@($"/api/payment-receipts/{payment.Id}/download")"
+                                               target="_blank"
+                                               class="btn btn-outline-primary btn-sm">
+                                                دانلود رسید
+                                            </a>
+                                            <div class="small text-muted mt-1">
+                                                @(payment.ReceiptOriginalFileName ?? "")
+                                            </div>
+                                            @if (!string.IsNullOrWhiteSpace(payment.PayerName))
+                                            {
+                                                <div class="small text-muted">واریزکننده: @payment.PayerName</div>
+                                            }
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">بدون فایل رسید</span>
+                                        }
+                                    </td>
 
                                     <td>
                                         @if (payment.Status == PaymentStatus.Paid)
                                         {
-                                            <span class="text-success">
-                                                پرداخت موفق
-
-                                                @if (payment.VerifiedAt.HasValue)
-                                                {
-                                                    <br />
-                                                    <small>
-                                                        زمان تأیید:
-                                                        @payment.VerifiedAt.Value.ToString("yyyy/MM/dd HH:mm")
-                                                    </small>
-                                                }
-                                            </span>
+                                            <span class="text-success">پرداخت تأیید شده</span>
+                                            @if (payment.ReviewedAt.HasValue)
+                                            {
+                                                <div class="small text-muted">
+                                                    بررسی: @payment.ReviewedAt.Value.ToString("yyyy/MM/dd HH:mm")
+                                                </div>
+                                            }
                                         }
                                         else if (payment.Status == PaymentStatus.Failed)
                                         {
@@ -219,9 +240,37 @@ else if (order != null)
                                         }
                                         else
                                         {
-                                            <span class="text-muted">
-                                                در انتظار تعیین نتیجه
-                                            </span>
+                                            <span class="text-muted">در انتظار بررسی رسید</span>
+                                        }
+                                    </td>
+
+                                    <td style="min-width:210px">
+                                        @if (payment.Gateway == "BankTransfer" &&
+                                             payment.Status == PaymentStatus.Pending &&
+                                             !string.IsNullOrWhiteSpace(payment.ReceiptStoredFileName))
+                                        {
+                                            <textarea class="form-control form-control-sm mb-2"
+                                                      rows="2"
+                                                      maxlength="500"
+                                                      placeholder="در صورت رد رسید، علت را بنویسید"
+                                                      @bind="payment.FailureReason"></textarea>
+
+                                            <div class="d-flex gap-2">
+                                                <button class="btn btn-success btn-sm"
+                                                        disabled="@isReviewingPayment"
+                                                        @onclick="() => ReviewBankTransfer(payment.Id, true)">
+                                                    تأیید رسید
+                                                </button>
+                                                <button class="btn btn-outline-danger btn-sm"
+                                                        disabled="@isReviewingPayment"
+                                                        @onclick="() => ReviewBankTransfer(payment.Id, false)">
+                                                    رد رسید
+                                                </button>
+                                            </div>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">-</span>
                                         }
                                     </td>
                                 </tr>
@@ -238,8 +287,8 @@ else if (order != null)
             }
 
             <div class="alert alert-info mt-3 mb-0">
-                وضعیت پرداخت فقط از طریق تأیید معتبر درگاه پرداخت تغییر می‌کند.
-                امکان ثبت دستی پرداخت موفق از پنل مدیریت وجود ندارد.
+                پرداخت کارت‌به‌کارت فقط پس از مشاهده رسید و تأیید مدیر ثبت می‌شود.
+                رد رسید، سفارش را پرداخت‌شده نمی‌کند و مشتری می‌تواند رسید جدید ارسال کند.
             </div>
 
         </div>
@@ -585,6 +634,7 @@ else if (order != null)
     private bool isLoading = true;
 
     private bool isSaving;
+    private bool isReviewingPayment;
 
     private string? errorMessage;
 
@@ -734,6 +784,52 @@ else if (order != null)
             x.UploadedAt < document.UploadedAt);
     }
 
+    private async Task ReviewBankTransfer(int paymentId, bool approve)
+    {
+        if (isReviewingPayment)
+            return;
+
+        errorMessage = null;
+        successMessage = null;
+        isReviewingPayment = true;
+
+        try
+        {
+            var authState =
+                await AuthenticationStateProvider.GetAuthenticationStateAsync();
+
+            var adminUserId = authState.User.FindFirstValue(
+                ClaimTypes.NameIdentifier);
+
+            if (string.IsNullOrWhiteSpace(adminUserId))
+                throw new InvalidOperationException("حساب مدیر شناسایی نشد.");
+
+            var payment = order?.Payments.FirstOrDefault(x => x.Id == paymentId);
+            if (payment == null)
+                throw new InvalidOperationException("تراکنش موردنظر پیدا نشد.");
+
+            var result = await BankTransferService.ReviewAsync(
+                paymentId,
+                adminUserId,
+                approve,
+                payment.FailureReason);
+
+            if (!result.IsSuccess)
+                throw new InvalidOperationException(result.Message);
+
+            successMessage = result.Message;
+            Navigation.NavigateTo(Navigation.Uri, forceLoad: true);
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"بررسی رسید ناموفق بود: {ex.GetBaseException().Message}";
+        }
+        finally
+        {
+            isReviewingPayment = false;
+        }
+    }
+
     private async Task SaveOrder()
     {
         if (order == null || isSaving)
@@ -873,7 +969,7 @@ else if (order != null)
     {
         return status switch
         {
-            PaymentStatus.Pending => "در انتظار پرداخت",
+            PaymentStatus.Pending => "در انتظار بررسی",
             PaymentStatus.Paid => "پرداخت موفق",
             PaymentStatus.Failed => "ناموفق",
             _ => "نامشخص"
