@@ -88,7 +88,7 @@ export async function saveCart(json, storageKey = "guest") {
                 } catch {
                     itemCount = 0;
                 }
-                window.dispatchEvent(new CustomEvent("orderCartChanged", { detail: itemCount }));
+                window.dispatchEvent(new CustomEvent("orderCartChanged", { detail: { storageKey, itemCount } }));
                 resolve();
             };
 
@@ -116,7 +116,7 @@ export async function clearCart(storageKey = "guest") {
             transaction.objectStore(STORE_NAME).delete(resolveCartKey(storageKey));
 
             transaction.oncomplete = function () {
-                window.dispatchEvent(new CustomEvent("orderCartChanged", { detail: 0 }));
+                window.dispatchEvent(new CustomEvent("orderCartChanged", { detail: { storageKey, itemCount: 0 } }));
                 resolve();
             };
 
@@ -141,7 +141,7 @@ export function subscribeCartChanges(dotNetReference) {
     unsubscribeCartChanges();
 
     cartChangeHandler = function (event) {
-        dotNetReference.invokeMethodAsync("OnCartChanged", Number(event.detail) || 0)
+        dotNetReference.invokeMethodAsync("OnCartChanged", event.detail?.storageKey || "guest", Number(event.detail?.itemCount) || 0)
             .catch(() => { });
     };
 
