@@ -62,6 +62,7 @@ builder.Services.AddScoped<IPaymentGateway, UnavailablePaymentGateway>();
 builder.Services.AddScoped<PaymentReceiptStorageService>();
 builder.Services.AddScoped<BankTransferPaymentService>();
 builder.Services.AddScoped<OrderDocumentStorageService>();
+builder.Services.AddScoped<DocumentSampleImageStorageService>();
 builder.Services.AddScoped<OrderDeliveryFileStorageService>();
 
 // ---------------------------------------
