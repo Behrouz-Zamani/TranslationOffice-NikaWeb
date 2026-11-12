@@ -187,7 +187,7 @@ else if (order != null)
                                         @payment.AmountToman.ToString("N0") تومان
                                     </td>
 
-                                    <td>@payment.Gateway</td>
+                                    <td>@(payment.Gateway == "BankTransfer" ? "کارت‌به‌کارت" : payment.Gateway)</td>
 
                                     <td>
                                         <span class="badge @GetPaymentStatusClass(payment.Status)">
