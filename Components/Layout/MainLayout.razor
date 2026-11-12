@@ -203,13 +203,6 @@
     private IJSObjectReference? cartStorageModule;
     private DotNetObjectReference<MainLayout>? cartDotNetReference;
 
-    private sealed class CartBadgeState
-    {
-        public List<CartBadgeItem> Items { get; set; } = new();
-    }
-
-    private sealed class CartBadgeItem { }
-
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (!firstRender)
@@ -247,19 +240,24 @@
 
     private void UpdateCartBadge(string? savedJson, bool animate)
     {
-        try
-        {
-            var state = string.IsNullOrWhiteSpace(savedJson)
-                ? null
-                : JsonSerializer.Deserialize<CartBadgeState>(
-                    savedJson,
-                    new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+        cartItemCount = 0;
 
-            cartItemCount = state?.Items?.Count ?? 0;
-        }
-        catch
+        if (!string.IsNullOrWhiteSpace(savedJson))
         {
-            cartItemCount = 0;
+            try
+            {
+                using var document = JsonDocument.Parse(savedJson);
+
+                if (document.RootElement.TryGetProperty("Items", out var items) &&
+                    items.ValueKind == JsonValueKind.Array)
+                {
+                    cartItemCount = items.GetArrayLength();
+                }
+            }
+            catch
+            {
+                cartItemCount = 0;
+            }
         }
 
         cartAnimation = animate && cartItemCount > 0;
