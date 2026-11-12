@@ -14,6 +14,8 @@ public sealed class CartService
         _dbFactory = dbFactory;
     }
 
+    public string GuestCartKey { get; set; } = string.Empty;
+
     public event Action<string, int>? CartChanged;
 
     public async Task<string?> LoadAsync(string cartKey)
