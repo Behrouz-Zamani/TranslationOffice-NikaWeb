@@ -2,6 +2,8 @@
 @page "/order/cart"
 @page "/order/product/{DocumentId:int}"
 
+@implements IDisposable
+
 @using System.IO
 @using System.Text.Json
 @using TranslationOffice.Data
@@ -10,7 +12,6 @@
 @using Microsoft.EntityFrameworkCore
 @using Microsoft.AspNetCore.Components
 @using Microsoft.AspNetCore.Components.Forms
-@using Microsoft.JSInterop
 @using Microsoft.AspNetCore.Components.Authorization
 @using System.Security.Claims
 
@@ -18,8 +19,10 @@
 @inject PricingService Pricing
 @inject OrderDocumentStorageService DocumentStorage
 @inject NavigationManager Navigation
-@inject IJSRuntime JS
 @inject AuthenticationStateProvider AuthStateProvider
+@inject CartService CartService
+@inject PersistentComponentState PersistentState
+@inject IHttpContextAccessor HttpContextAccessor
 
 
 <div class="order-page-heading mb-4">
@@ -367,8 +370,9 @@ else
     private List<UploadedFileData> selectedFiles = new();
     private List<CartItem> cart = new();
 
-    private IJSObjectReference? cartStorage;
     private string cartStorageKey = "guest";
+    private string guestCartKey = "";
+    private PersistingComponentStateSubscription guestCartKeySubscription;
 
     protected override async Task OnInitializedAsync()
     {
@@ -376,16 +380,92 @@ else
         var user = authState.User;
         var userId = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
 
-        cartStorageKey = user.Identity?.IsAuthenticated == true &&
-                         !string.IsNullOrWhiteSpace(userId)
-            ? $"user:{userId}"
-            : "guest";
+        if (user.Identity?.IsAuthenticated == true &&
+            !string.IsNullOrWhiteSpace(userId))
+        {
+            cartStorageKey = $"user:{userId}";
+        }
+        else
+        {
+            if (!PersistentState.TryTakeFromJson<string>("NikaGuestCartKey", out var restoredGuestKey) ||
+                string.IsNullOrWhiteSpace(restoredGuestKey))
+            {
+                guestCartKey =
+                    HttpContextAccessor.HttpContext?.Request.Cookies["nika-cart-id"]
+                    ?? Guid.NewGuid().ToString("N");
+
+                guestCartKeySubscription =
+                    PersistentState.RegisterOnPersisting(PersistGuestCartKeyAsync);
+            }
+            else
+            {
+                guestCartKey = restoredGuestKey;
+            }
+
+            cartStorageKey = $"guest:{guestCartKey}";
+        }
 
         documents = await Db.DocumentTypes
             .AsNoTracking()
             .Where(x => x.IsActive)
             .OrderBy(x => x.Name)
             .ToListAsync();
+
+        try
+        {
+            var savedJson = await CartService.LoadAsync(cartStorageKey);
+            if (!string.IsNullOrWhiteSpace(savedJson))
+            {
+                var state = JsonSerializer.Deserialize<GuestCartState>(savedJson, JsonOptions);
+                if (state != null)
+                {
+                    cart = state.Items ?? new List<CartItem>();
+                    activeOrderId = state.OrderId;
+                    activeGuestToken = state.GuestToken;
+
+                    if (activeOrderId.HasValue)
+                    {
+                        var existingOrder = await Db.Orders.AsNoTracking()
+                            .FirstOrDefaultAsync(x => x.Id == activeOrderId.Value);
+
+                        var tokenIsValid =
+                            existingOrder != null &&
+                            existingOrder.UserId == null &&
+                            GuestOrderToken.Verify(activeGuestToken, existingOrder.GuestAccessTokenHash);
+
+                        if (!tokenIsValid)
+                        {
+                            cart.Clear();
+                            activeOrderId = null;
+                            activeGuestToken = null;
+                            activeOrderNumber = null;
+                            await ClearPersistentCartAsync();
+                            errorMessage = "سفارش قبلی به حساب کاربری متصل شده یا اطلاعات دسترسی آن معتبر نیست. سبد مهمان پاک شد.";
+                        }
+                        else
+                        {
+                            activeOrderNumber = existingOrder!.OrderNumber;
+                        }
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "بازیابی سبد سفارش از پایگاه داده ناموفق بود: " + ex.GetBaseException().Message;
+            cartLoadFailed = true;
+            Console.Error.WriteLine(ex);
+        }
+        finally
+        {
+            isCartLoaded = true;
+        }
+    }
+
+    private Task PersistGuestCartKeyAsync()
+    {
+        PersistentState.PersistAsJson("NikaGuestCartKey", guestCartKey);
+        return Task.CompletedTask;
     }
 
     protected override void OnParametersSet()
@@ -422,90 +502,6 @@ else
         {
             selectedDoc = null;
             currentPrice = 0;
-        }
-    }
-
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        if (!firstRender)
-            return;
-
-        try
-        {
-            cartStorage = await JS.InvokeAsync<IJSObjectReference>(
-                    "import",
-                    "./js/orderCartStorage.js")
-                .AsTask()
-                .WaitAsync(TimeSpan.FromSeconds(12));
-
-            var savedJson = await cartStorage.InvokeAsync<string?>(
-                    "loadCart",
-                    cartStorageKey)
-                .AsTask()
-                .WaitAsync(TimeSpan.FromSeconds(12));
-
-            if (!string.IsNullOrWhiteSpace(savedJson))
-            {
-                var state = JsonSerializer.Deserialize<GuestCartState>(
-                    savedJson,
-                    JsonOptions);
-
-                if (state != null)
-                {
-                    cart = state.Items ?? new List<CartItem>();
-                    activeOrderId = state.OrderId;
-                    activeGuestToken = state.GuestToken;
-
-                    if (activeOrderId.HasValue)
-                    {
-                        var existingOrder = await Db.Orders
-                            .AsNoTracking()
-                            .FirstOrDefaultAsync(x => x.Id == activeOrderId.Value);
-
-                        var tokenIsValid =
-                            existingOrder != null &&
-                            existingOrder.UserId == null &&
-                            GuestOrderToken.Verify(
-                                activeGuestToken,
-                                existingOrder.GuestAccessTokenHash);
-
-                        if (!tokenIsValid)
-                        {
-                            cart.Clear();
-                            activeOrderId = null;
-                            activeGuestToken = null;
-                            activeOrderNumber = null;
-
-                            await ClearPersistentCartAsync();
-
-                            errorMessage =
-                                "سفارش قبلی به حساب کاربری متصل شده یا اطلاعات دسترسی آن معتبر نیست. سبد مهمان پاک شد.";
-                        }
-                        else
-                        {
-                            activeOrderNumber = existingOrder!.OrderNumber;
-                        }
-                    }
-                }
-            }
-        }
-        catch (TimeoutException)
-        {
-            errorMessage =
-                "بازیابی سبد سفارش بیش از حد طول کشید. صفحه را یک‌بار تازه‌سازی کنید.";
-            cartLoadFailed = true;
-        }
-        catch (Exception ex)
-        {
-            errorMessage =
-                "بازیابی سبد سفارش ناموفق بود: " +
-                ex.GetBaseException().Message;
-            cartLoadFailed = true;
-        }
-        finally
-        {
-            isCartLoaded = true;
-            await InvokeAsync(StateHasChanged);
         }
     }
 
@@ -970,27 +966,24 @@ else
 
     private async Task SavePersistentCartAsync()
     {
-        if (cartStorage == null)
-            return;
-
         var state = new GuestCartState
         {
             OrderId = activeOrderId,
             GuestToken = activeGuestToken,
             Items = cart
         };
-
         var json = JsonSerializer.Serialize(state, JsonOptions);
-
-        await cartStorage.InvokeVoidAsync("saveCart", json, cartStorageKey);
+        await CartService.SaveAsync(cartStorageKey, json, activeOrderId);
     }
 
     private async Task ClearPersistentCartAsync()
     {
-        if (cartStorage == null)
-            return;
+        await CartService.DeleteAsync(cartStorageKey);
+    }
 
-        await cartStorage.InvokeVoidAsync("clearCart", cartStorageKey);
+    public void Dispose()
+    {
+        guestCartKeySubscription.Dispose();
     }
 
     private static string FormatFileSize(long size)
