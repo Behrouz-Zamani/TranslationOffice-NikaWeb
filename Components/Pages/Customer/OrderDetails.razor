@@ -16,6 +16,8 @@
 @inject ApplicationDbContext Db
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject OrderDocumentStorageService DocumentStorage
+@inject BankTransferPaymentService BankTransferService
+@inject IConfiguration Configuration
 @inject NavigationManager Navigation
 
 <PageTitle>جزئیات سفارش</PageTitle>
@@ -117,6 +119,152 @@
                     }
 
                 </div>
+            </div>
+        </div>
+
+
+        <!-- پرداخت کارت‌به‌کارت -->
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-header bg-white fw-bold py-3">
+                <i class="bi bi-wallet2 ms-1"></i>
+                پرداخت و سوابق تراکنش‌ها
+            </div>
+            <div class="card-body">
+                <div class="row mb-3">
+                    <div class="col-md-4 mb-2">
+                        <span class="text-muted">مبلغ کل:</span>
+                        <strong>@order.TotalPrice.ToString("N0") تومان</strong>
+                    </div>
+                    <div class="col-md-4 mb-2">
+                        <span class="text-muted">پرداخت‌شده:</span>
+                        <strong class="text-success">@paidAmount.ToString("N0") تومان</strong>
+                    </div>
+                    <div class="col-md-4 mb-2">
+                        <span class="text-muted">مانده:</span>
+                        <strong class="text-danger">@remainingAmount.ToString("N0") تومان</strong>
+                    </div>
+                </div>
+
+                @if (order.Status == "PendingPayment" && remainingAmount > 0)
+                {
+                    @if (hasPendingReceipt)
+                    {
+                        <div class="alert alert-warning mb-3">
+                            رسید شما ثبت شده و در انتظار بررسی مدیر است. تا اعلام نتیجه، رسید دیگری ارسال نکنید.
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="border rounded p-3 mb-3">
+                            <h6 class="fw-bold">اطلاعات واریز</h6>
+                            @if (bankDetailsConfigured)
+                            {
+                                <div class="row">
+                                    @if (!string.IsNullOrWhiteSpace(Configuration["BankTransfer:BankName"]))
+                                    {
+                                        <div class="col-md-6 mb-2"><strong>بانک:</strong> @Configuration["BankTransfer:BankName"]</div>
+                                    }
+                                    @if (!string.IsNullOrWhiteSpace(Configuration["BankTransfer:AccountHolder"]))
+                                    {
+                                        <div class="col-md-6 mb-2"><strong>به نام:</strong> @Configuration["BankTransfer:AccountHolder"]</div>
+                                    }
+                                    @if (!string.IsNullOrWhiteSpace(Configuration["BankTransfer:CardNumber"]))
+                                    {
+                                        <div class="col-md-6 mb-2"><strong>شماره کارت:</strong> <span dir="ltr">@Configuration["BankTransfer:CardNumber"]</span></div>
+                                    }
+                                    @if (!string.IsNullOrWhiteSpace(Configuration["BankTransfer:Sheba"]))
+                                    {
+                                        <div class="col-md-6 mb-2"><strong>شماره شبا:</strong> <span dir="ltr">@Configuration["BankTransfer:Sheba"]</span></div>
+                                    }
+                                    @if (!string.IsNullOrWhiteSpace(Configuration["BankTransfer:AccountNumber"]))
+                                    {
+                                        <div class="col-md-6 mb-2"><strong>شماره حساب:</strong> <span dir="ltr">@Configuration["BankTransfer:AccountNumber"]</span></div>
+                                    }
+                                </div>
+                                <div class="alert alert-info mb-0">
+                                    مبلغ دقیق <strong>@remainingAmount.ToString("N0") تومان</strong> را واریز کنید و سپس تصویر یا فایل رسید را ارسال کنید.
+                                    شماره سفارش <strong>@order.OrderNumber</strong> را در توضیحات واریز درج کنید.
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="alert alert-warning mb-0">
+                                    اطلاعات حساب مقصد هنوز توسط مدیریت تنظیم نشده است. فعلاً امکان ارسال رسید فعال نیست.
+                                </div>
+                            }
+                        </div>
+
+                        @if (bankDetailsConfigured)
+                        {
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">نام واریزکننده (اختیاری)</label>
+                                    <input class="form-control" maxlength="150" @bind="payerName" />
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">شماره پیگیری واریز (اختیاری)</label>
+                                    <input class="form-control" maxlength="100" @bind="transferReference" />
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label">تصویر یا فایل رسید</label>
+                                    <InputFile OnChange="SubmitPaymentReceipt"
+                                               accept=".pdf,.jpg,.jpeg,.png"
+                                               class="form-control"
+                                               disabled="@isSubmittingReceipt" />
+                                    <small class="text-muted d-block mt-2">
+                                        فرمت مجاز: PDF، JPG، JPEG و PNG؛ حداکثر حجم: ۵ مگابایت
+                                    </small>
+                                </div>
+                            </div>
+                        }
+                    }
+                }
+                else if (order.Status == "Paid")
+                {
+                    <div class="alert alert-success mb-0">پرداخت سفارش تأیید شده است.</div>
+                }
+
+                @if (order.Payments.Any())
+                {
+                    <hr />
+                    <h6 class="fw-bold mb-3">تاریخچه پرداخت‌ها</h6>
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-sm align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>تاریخ</th>
+                                    <th>مبلغ</th>
+                                    <th>روش</th>
+                                    <th>وضعیت</th>
+                                    <th>رسید</th>
+                                    <th>توضیحات بررسی</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var payment in order.Payments.OrderByDescending(x => x.CreatedAt))
+                                {
+                                    <tr>
+                                        <td>@payment.CreatedAt.ToString("yyyy/MM/dd HH:mm")</td>
+                                        <td class="text-nowrap">@payment.AmountToman.ToString("N0") تومان</td>
+                                        <td>@(payment.Gateway == "BankTransfer" ? "کارت‌به‌کارت" : payment.Gateway)</td>
+                                        <td><span class="badge @GetReceiptStatusClass(payment.Status)">@GetReceiptStatusText(payment.Status)</span></td>
+                                        <td>
+                                            @if (!string.IsNullOrWhiteSpace(payment.ReceiptStoredFileName))
+                                            {
+                                                <a href="@($"/api/payment-receipts/{payment.Id}/download")" class="btn btn-sm btn-outline-primary">دانلود رسید</a>
+                                            }
+                                            else
+                                            {
+                                                <span class="text-muted">-</span>
+                                            }
+                                        </td>
+                                        <td>@(payment.Status == PaymentStatus.Failed ? payment.FailureReason : "-")</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
             </div>
         </div>
 
@@ -402,6 +550,28 @@
     public int OrderId { get; set; }
 
     private const long MaxFileSize = 10 * 1024 * 1024;
+    private const long MaxReceiptFileSize = PaymentReceiptStorageService.MaxFileSize;
+
+    private string? payerName;
+    private string? transferReference;
+    private bool isSubmittingReceipt;
+
+    private decimal paidAmount =>
+        order?.Payments.Where(x => x.Status == PaymentStatus.Paid)
+            .Sum(x => x.AmountToman) ?? 0m;
+
+    private decimal remainingAmount =>
+        Math.Max(0m, (order?.TotalPrice ?? 0m) - paidAmount);
+
+    private bool hasPendingReceipt =>
+        order?.Payments.Any(x =>
+            x.Gateway == "BankTransfer" &&
+            x.Status == PaymentStatus.Pending) ?? false;
+
+    private bool bankDetailsConfigured =>
+        !string.IsNullOrWhiteSpace(Configuration["BankTransfer:CardNumber"]) ||
+        !string.IsNullOrWhiteSpace(Configuration["BankTransfer:Sheba"]) ||
+        !string.IsNullOrWhiteSpace(Configuration["BankTransfer:AccountNumber"]);
 
     private static readonly HashSet<string> AllowedExtensions =
         new(StringComparer.OrdinalIgnoreCase)
@@ -468,6 +638,7 @@
             .Where(x =>
                 x.Id == OrderId &&
                 x.UserId == currentUserId)
+            .Include(x => x.Payments)
             .Include(x => x.Items)
                 .ThenInclude(x => x.DocumentType)
             .Include(x => x.Items)
@@ -483,6 +654,73 @@
                 "سفارش موردنظر پیدا نشد یا اجازه مشاهده آن را ندارید.";
         }
     }
+
+
+    private async Task SubmitPaymentReceipt(InputFileChangeEventArgs e)
+    {
+        if (isSubmittingReceipt || order == null)
+            return;
+
+        errorMessage = null;
+        successMessage = null;
+        isSubmittingReceipt = true;
+
+        try
+        {
+            if (string.IsNullOrWhiteSpace(currentUserId))
+                throw new InvalidOperationException("اطلاعات حساب کاربری معتبر نیست.");
+
+            var file = e.File;
+            if (file == null || file.Size <= 0 || file.Size > MaxReceiptFileSize)
+                throw new InvalidOperationException("حجم فایل رسید باید بیشتر از صفر و حداکثر ۵ مگابایت باشد.");
+
+            await using var input = file.OpenReadStream(MaxReceiptFileSize);
+            await using var memory = new MemoryStream();
+            await input.CopyToAsync(memory);
+
+            var result = await BankTransferService.SubmitReceiptAsync(
+                OrderId,
+                currentUserId,
+                file.Name,
+                memory.ToArray(),
+                payerName,
+                transferReference);
+
+            if (!result.IsSuccess)
+                throw new InvalidOperationException(result.Message);
+
+            successMessage = result.Message;
+            payerName = null;
+            transferReference = null;
+            await LoadOrder();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"ثبت رسید ناموفق بود: {ex.GetBaseException().Message}";
+        }
+        finally
+        {
+            isSubmittingReceipt = false;
+        }
+    }
+
+    private static string GetReceiptStatusText(PaymentStatus status) =>
+        status switch
+        {
+            PaymentStatus.Pending => "در انتظار بررسی",
+            PaymentStatus.Paid => "تأییدشده",
+            PaymentStatus.Failed => "ردشده",
+            _ => "نامشخص"
+        };
+
+    private static string GetReceiptStatusClass(PaymentStatus status) =>
+        status switch
+        {
+            PaymentStatus.Pending => "bg-warning text-dark",
+            PaymentStatus.Paid => "bg-success",
+            PaymentStatus.Failed => "bg-danger",
+            _ => "bg-secondary"
+        };
 
     private async Task UploadFiles(
         int orderItemId,

@@ -32,4 +32,16 @@ public class Payment
     public DateTime CreatedAt { get; set; } = DateTime.Now;
 
     public DateTime? VerifiedAt { get; set; }
+
+    // اطلاعات رسید پرداخت کارت‌به‌کارت
+    public string? ReceiptOriginalFileName { get; set; }
+    public string? ReceiptStoredFileName { get; set; }
+    public string? ReceiptContentType { get; set; }
+    public long? ReceiptFileSize { get; set; }
+    public string? PayerName { get; set; }
+    public string? TransferReference { get; set; }
+
+    // اطلاعات بررسی رسید توسط مدیر
+    public DateTime? ReviewedAt { get; set; }
+    public string? ReviewedByUserId { get; set; }
 }

@@ -66,6 +66,24 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             entity.Property(x => x.FailureReason)
                 .HasMaxLength(500);
 
+            entity.Property(x => x.ReceiptOriginalFileName)
+                .HasMaxLength(255);
+
+            entity.Property(x => x.ReceiptStoredFileName)
+                .HasMaxLength(100);
+
+            entity.Property(x => x.ReceiptContentType)
+                .HasMaxLength(100);
+
+            entity.Property(x => x.PayerName)
+                .HasMaxLength(150);
+
+            entity.Property(x => x.TransferReference)
+                .HasMaxLength(100);
+
+            entity.Property(x => x.ReviewedByUserId)
+                .HasMaxLength(450);
+
             entity.HasOne(x => x.Order)
                 .WithMany(x => x.Payments)
                 .HasForeignKey(x => x.OrderId)
