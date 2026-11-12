@@ -13,6 +13,9 @@ public class Order
     // هش توکن دسترسی سفارش مهمان؛ خود توکن ذخیره نمی‌شود.
     public string? GuestAccessTokenHash { get; set; }
 
+    // شماره موبایل مقصد اطلاع‌رسانی‌های همین سفارش.
+    public string CustomerPhone { get; set; } = string.Empty;
+
     public DateTime CreatedAt { get; set; } = DateTime.Now;
 
     // وضعیت پرداخت سفارش:
