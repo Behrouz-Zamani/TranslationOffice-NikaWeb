@@ -60,28 +60,21 @@
 
         @if (!string.IsNullOrWhiteSpace(errorMessage))
         {
-            <div class="alert alert-danger">
-                @errorMessage
-            </div>
+            <div class="alert alert-danger">@errorMessage</div>
         }
 
         @if (!string.IsNullOrWhiteSpace(successMessage))
         {
-            <div class="alert alert-success">
-                @successMessage
-            </div>
+            <div class="alert alert-success">@successMessage</div>
         }
 
-        <!-- اطلاعات سفارش -->
         <div class="card border-0 shadow-sm mb-4">
-
             <div class="card-header bg-white fw-bold py-3">
                 <i class="bi bi-receipt ms-1"></i>
                 اطلاعات سفارش
             </div>
 
             <div class="card-body">
-
                 <div class="row">
 
                     <div class="col-md-6 mb-3">
@@ -124,11 +117,9 @@
                     }
 
                 </div>
-
             </div>
         </div>
 
-        <!-- ردیف‌های سفارش -->
         @foreach (var item in order.Items)
         {
             var correctionDocuments = item.Documents
@@ -138,7 +129,6 @@
             <div class="card border-0 shadow-sm mb-4">
 
                 <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap gap-2 py-3">
-
                     <strong>
                         <i class="bi bi-file-earmark-text ms-1"></i>
                         @item.DocumentType.Name
@@ -147,12 +137,10 @@
                     <span class="fw-bold text-primary">
                         @item.TotalPrice.ToString("N0") تومان
                     </span>
-
                 </div>
 
                 <div class="card-body">
 
-                    <!-- اطلاعات مدرک -->
                     <h6 class="fw-bold mb-3">اطلاعات مدرک</h6>
 
                     <div class="row mb-3">
@@ -188,7 +176,6 @@
 
                     <hr />
 
-                    <!-- مدارک اولیه و اصلاحی مشتری -->
                     <h6 class="fw-bold mb-3">
                         <i class="bi bi-file-earmark-text ms-1"></i>
                         مدارک بارگذاری‌شده و وضعیت بررسی
@@ -197,7 +184,6 @@
                     @if (item.Documents.Any())
                     {
                         <div class="table-responsive">
-
                             <table class="table table-bordered table-hover table-sm align-middle">
 
                                 <thead class="table-light">
@@ -207,15 +193,14 @@
                                         <th>تاریخ بارگذاری</th>
                                         <th>وضعیت بررسی</th>
                                         <th>توضیحات مدیر</th>
+                                        <th>دانلود</th>
                                     </tr>
                                 </thead>
 
                                 <tbody>
-
                                     @foreach (var document in item.Documents.OrderByDescending(x => x.UploadedAt))
                                     {
                                         <tr>
-
                                             <td class="fw-bold">
                                                 @document.OriginalFileName
                                             </td>
@@ -231,21 +216,15 @@
                                             <td>
                                                 @if (document.ReviewStatus == "Approved")
                                                 {
-                                                    <span class="badge bg-success">
-                                                        تأییدشده
-                                                    </span>
+                                                    <span class="badge bg-success">تأییدشده</span>
                                                 }
                                                 else if (document.ReviewStatus == "NeedsCorrection")
                                                 {
-                                                    <span class="badge bg-danger">
-                                                        نیازمند اصلاح
-                                                    </span>
+                                                    <span class="badge bg-danger">نیازمند اصلاح</span>
                                                 }
                                                 else
                                                 {
-                                                    <span class="badge bg-warning text-dark">
-                                                        در انتظار بررسی
-                                                    </span>
+                                                    <span class="badge bg-warning text-dark">در انتظار بررسی</span>
                                                 }
                                             </td>
 
@@ -260,13 +239,18 @@
                                                 }
                                             </td>
 
+                                            <td>
+                                                <a href="@($"/api/documents/{document.Id}/download")"
+                                                   class="btn btn-sm btn-outline-primary">
+                                                    <i class="bi bi-download ms-1"></i>
+                                                    دانلود
+                                                </a>
+                                            </td>
                                         </tr>
                                     }
-
                                 </tbody>
 
                             </table>
-
                         </div>
                     }
                     else
@@ -276,58 +260,38 @@
                         </div>
                     }
 
-                    <!-- هشدار مدارک نیازمند اصلاح -->
                     @if (correctionDocuments.Any())
                     {
                         <div class="alert alert-danger mt-3">
-
                             <h6 class="fw-bold">
                                 <i class="bi bi-exclamation-triangle ms-1"></i>
                                 مدارک نیازمند اصلاح
                             </h6>
 
-                            <p class="mb-2">
-                                مدیر مدارک زیر را نیازمند اصلاح اعلام کرده است:
-                            </p>
-
                             <ul class="mb-0">
-
                                 @foreach (var document in correctionDocuments)
                                 {
                                     <li>
-
-                                        <strong>
-                                            @document.OriginalFileName
-                                        </strong>
+                                        <strong>@document.OriginalFileName</strong>
 
                                         @if (!string.IsNullOrWhiteSpace(document.ReviewNote))
                                         {
                                             <div class="mt-1">
-                                                علت اصلاح:
-                                                @document.ReviewNote
+                                                علت اصلاح: @document.ReviewNote
                                             </div>
                                         }
-
                                     </li>
                                 }
-
                             </ul>
-
                         </div>
                     }
 
-                    <!-- بارگذاری مدارک مشتری -->
                     <div class="border rounded p-3 mt-3">
 
                         <h6 class="fw-bold mb-3">
-                            @if (correctionDocuments.Any())
-                            {
-                                <span>بارگذاری فایل اصلاح‌شده</span>
-                            }
-                            else
-                            {
-                                <span>بارگذاری مدارک جدید</span>
-                            }
+                            @(correctionDocuments.Any()
+                                ? "بارگذاری فایل اصلاح‌شده"
+                                : "بارگذاری مدارک جدید")
                         </h6>
 
                         @if (correctionDocuments.Any())
@@ -365,12 +329,10 @@
                                 در حال بارگذاری فایل‌ها...
                             </div>
                         }
-
                     </div>
 
                     <hr />
 
-                    <!-- فایل‌های ترجمه‌شده -->
                     <h6 class="fw-bold mb-3">
                         <i class="bi bi-file-earmark-check ms-1"></i>
                         فایل‌های ترجمه‌شده و تحویلی
@@ -379,7 +341,6 @@
                     @if (item.DeliveryFiles.Any())
                     {
                         <div class="table-responsive">
-
                             <table class="table table-bordered table-hover table-sm align-middle">
 
                                 <thead class="table-light">
@@ -392,11 +353,9 @@
                                 </thead>
 
                                 <tbody>
-
                                     @foreach (var delivery in item.DeliveryFiles.OrderByDescending(x => x.UploadedAt))
                                     {
                                         <tr>
-
                                             <td class="fw-bold">
                                                 @delivery.OriginalFileName
                                             </td>
@@ -412,20 +371,15 @@
                                             <td>
                                                 <a href="@($"/api/delivery-files/{delivery.Id}/download")"
                                                    class="btn btn-sm btn-success">
-
                                                     <i class="bi bi-download ms-1"></i>
                                                     دانلود ترجمه
-
                                                 </a>
                                             </td>
-
                                         </tr>
                                     }
-
                                 </tbody>
 
                             </table>
-
                         </div>
                     }
                     else
@@ -452,10 +406,7 @@
     private static readonly HashSet<string> AllowedExtensions =
         new(StringComparer.OrdinalIgnoreCase)
         {
-            ".pdf",
-            ".jpg",
-            ".jpeg",
-            ".png"
+            ".pdf", ".jpg", ".jpeg", ".png"
         };
 
     private Order? order;
@@ -550,12 +501,8 @@
         try
         {
             if (string.IsNullOrWhiteSpace(currentUserId))
-            {
-                throw new InvalidOperationException(
-                    "اطلاعات حساب کاربری معتبر نیست.");
-            }
+                throw new InvalidOperationException("اطلاعات حساب کاربری معتبر نیست.");
 
-            // بررسی مجدد مالکیت سفارش و ردیف سفارش
             var item = await Db.OrderItems
                 .AsNoTracking()
                 .Include(x => x.Order)
@@ -565,10 +512,7 @@
                     x.Order.UserId == currentUserId);
 
             if (item == null)
-            {
-                throw new InvalidOperationException(
-                    "ردیف سفارش پیدا نشد یا اجازه بارگذاری فایل ندارید.");
-            }
+                throw new InvalidOperationException("اجازه بارگذاری فایل ندارید.");
 
             var existingCount = await Db.OrderDocuments
                 .CountAsync(x => x.OrderItemId == orderItemId);
@@ -576,16 +520,10 @@
             var files = e.GetMultipleFiles(10);
 
             if (files.Count == 0)
-            {
-                throw new InvalidOperationException(
-                    "لطفاً حداقل یک فایل انتخاب کنید.");
-            }
+                throw new InvalidOperationException("لطفاً حداقل یک فایل انتخاب کنید.");
 
             if (existingCount + files.Count > 10)
-            {
-                throw new InvalidOperationException(
-                    "برای هر ردیف سفارش حداکثر ۱۰ فایل مجاز است.");
-            }
+                throw new InvalidOperationException("برای هر ردیف سفارش حداکثر ۱۰ فایل مجاز است.");
 
             await using var transaction =
                 await Db.Database.BeginTransactionAsync();
@@ -595,20 +533,12 @@
                 var extension = Path.GetExtension(file.Name);
 
                 if (!AllowedExtensions.Contains(extension))
-                {
-                    throw new InvalidOperationException(
-                        $"فرمت فایل {file.Name} مجاز نیست.");
-                }
+                    throw new InvalidOperationException($"فرمت فایل {file.Name} مجاز نیست.");
 
                 if (file.Size <= 0 || file.Size > MaxFileSize)
-                {
-                    throw new InvalidOperationException(
-                        $"حجم فایل {file.Name} باید حداکثر ۱۰ مگابایت باشد.");
-                }
+                    throw new InvalidOperationException($"حجم فایل {file.Name} باید حداکثر ۱۰ مگابایت باشد.");
 
-                await using var input =
-                    file.OpenReadStream(MaxFileSize);
-
+                await using var input = file.OpenReadStream(MaxFileSize);
                 await using var memory = new MemoryStream();
 
                 await input.CopyToAsync(memory);
@@ -616,10 +546,7 @@
                 var content = memory.ToArray();
 
                 if (content.Length != file.Size)
-                {
-                    throw new InvalidOperationException(
-                        $"خواندن فایل {file.Name} کامل انجام نشد.");
-                }
+                    throw new InvalidOperationException($"خواندن فایل {file.Name} کامل انجام نشد.");
 
                 var document = await DocumentStorage.SaveAsync(
                     Path.GetFileName(file.Name),
@@ -628,31 +555,18 @@
                     item.Id);
 
                 savedFiles.Add(document);
-
                 Db.OrderDocuments.Add(document);
             }
 
             await Db.SaveChangesAsync();
-
             await transaction.CommitAsync();
 
             databaseCommitted = true;
 
-            successMessage =
-                "مدارک با موفقیت بارگذاری شدند. فایل‌های قبلی نیز برای حفظ سوابق باقی مانده‌اند.";
+            successMessage = "مدارک با موفقیت بارگذاری شدند.";
 
             Db.ChangeTracker.Clear();
-
-            try
-            {
-                await LoadOrder();
-            }
-            catch (Exception refreshException)
-            {
-                errorMessage =
-                    "فایل‌ها ذخیره شدند، اما بارگذاری مجدد اطلاعات با خطا مواجه شد: " +
-                    refreshException.GetBaseException().Message;
-            }
+            await LoadOrder();
         }
         catch (Exception ex)
         {
@@ -662,12 +576,10 @@
                 {
                     try
                     {
-                        await DocumentStorage.DeleteAsync(
-                            file.StoredFileName);
+                        await DocumentStorage.DeleteAsync(file.StoredFileName);
                     }
                     catch
                     {
-                        // خطای پاک‌سازی نباید خطای اصلی را پنهان کند.
                     }
                 }
             }

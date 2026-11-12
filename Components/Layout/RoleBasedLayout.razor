@@ -1,0 +1,140 @@
+﻿@inherits LayoutComponentBase
+@implements IDisposable
+
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.EntityFrameworkCore
+@using TranslationOffice.Data
+
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject IDbContextFactory<ApplicationDbContext> DbFactory
+
+@if (isLoading)
+{
+    <div class="text-center p-5">
+        <div class="spinner-border text-primary" role="status"></div>
+    </div>
+}
+else if (userRole == "Admin")
+{
+    <AdminLayout Body="@Body" />
+}
+else if (userRole == "Translator")
+{
+    <TranslatorLayout Body="@Body" />
+}
+else
+{
+    <MainLayout Body="@Body" />
+}
+
+@code {
+    private string? userRole;
+    private bool isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        AuthenticationStateProvider.AuthenticationStateChanged
+            += OnAuthenticationStateChanged;
+
+        await LoadUserRoleAsync();
+    }
+
+    private async Task LoadUserRoleAsync()
+    {
+        try
+        {
+            var authState =
+                await AuthenticationStateProvider.GetAuthenticationStateAsync();
+
+            var user = authState.User;
+
+            if (user.Identity?.IsAuthenticated != true)
+            {
+                userRole = null;
+                return;
+            }
+
+            var userId = user.FindFirst(
+                System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+
+            if (string.IsNullOrWhiteSpace(userId))
+            {
+                userRole = null;
+                return;
+            }
+
+            await using var db = await DbFactory.CreateDbContextAsync();
+
+            userRole = await db.Users
+                .AsNoTracking()
+                .Where(x => x.Id == userId)
+                .Select(x => x.Role)
+                .FirstOrDefaultAsync();
+        }
+        catch
+        {
+            userRole = null;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void OnAuthenticationStateChanged(
+        Task<AuthenticationState> authenticationStateTask)
+    {
+        _ = InvokeAsync(async () =>
+        {
+            isLoading = true;
+            StateHasChanged();
+
+            try
+            {
+                var authState = await authenticationStateTask;
+                var user = authState.User;
+
+                if (user.Identity?.IsAuthenticated != true)
+                {
+                    userRole = null;
+                }
+                else
+                {
+                    var userId = user.FindFirst(
+                        System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+
+                    if (!string.IsNullOrWhiteSpace(userId))
+                    {
+                        await using var db =
+                            await DbFactory.CreateDbContextAsync();
+
+                        userRole = await db.Users
+                            .AsNoTracking()
+                            .Where(x => x.Id == userId)
+                            .Select(x => x.Role)
+                            .FirstOrDefaultAsync();
+                    }
+                    else
+                    {
+                        userRole = null;
+                    }
+                }
+            }
+            catch
+            {
+                userRole = null;
+            }
+            finally
+            {
+                isLoading = false;
+                StateHasChanged();
+            }
+        });
+    }
+
+    public void Dispose()
+    {
+        AuthenticationStateProvider.AuthenticationStateChanged
+            -= OnAuthenticationStateChanged;
+    }
+}

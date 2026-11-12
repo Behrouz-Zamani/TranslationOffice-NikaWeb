@@ -1,143 +1,17 @@
-﻿@* @page "/order/success/{OrderId:int}"
-@using TranslationOffice.Data
-@using TranslationOffice.Models
-@using Microsoft.EntityFrameworkCore
-@inject ApplicationDbContext Db
-@inject NavigationManager Navigation
-@rendermode InteractiveServer
-
-@if (order == null)
-{
-    <div class="text-center my-5">
-        <p>در حال بارگذاری اطلاعات سفارش...</p>
-    </div>
-}
-else
-{
-    <div class="row justify-content-center">
-        <div class="col-md-8">
-            <div class="card border-success">
-                <div class="card-header bg-success text-white text-center">
-                    <h4 class="mb-0">سفارش شما با موفقیت ثبت شد</h4>
-                </div>
-                <div class="card-body text-center">
-
-                    <div class="mb-4">
-                        <div class="display-6 text-success mb-2">✓</div>
-                        <p class="fs-5">شماره سفارش شما:</p>
-                        <h3 class="text-primary">@order.OrderNumber</h3>
-                    </div>
-
-                    <div class="row text-start mb-4">
-                        <div class="col-md-6">
-                            <p><strong>تاریخ ثبت:</strong> @order.CreatedAt.ToString("yyyy/MM/dd - HH:mm")</p>
-                            <p>
-                                <strong>وضعیت:</strong>
-                                <span class="badge bg-warning text-dark">@GetStatusText(order.Status)</span>
-                            </p>
-                        </div>
-                        <div class="col-md-6">
-                            <p><strong>مبلغ کل:</strong></p>
-                            <h4 class="text-success">@order.TotalPrice.ToString("N0") تومان</h4>
-                        </div>
-                    </div>
-
-                    <hr />
-
-                    <h5 class="mb-3">جزئیات سفارش</h5>
-                    <table class="table table-bordered table-sm">
-                        <thead class="table-light">
-                            <tr>
-                                <th>مدرک</th>
-                                <th>تعداد نسخه</th>
-                                <th>سطر/صفحه</th>
-                                <th>دادگستری</th>
-                                <th>خارجه</th>
-                                <th>قیمت</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach (var item in order.Items)
-                            {
-                                <tr>
-                                    <td>@item.DocumentType?.Name</td>
-                                    <td>@item.Quantity</td>
-                                    <td>@item.Units</td>
-                                    <td>@(item.NeedJudiciary ? "بله" : "خیر")</td>
-                                    <td>@(item.NeedForeignAffairs ? "بله" : "خیر")</td>
-                                    <td>@item.TotalPrice.ToString("N0")</td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
-
-                    <div class="mt-4">
-                        <button class="btn btn-primary me-2" @onclick="GoToNewOrder">
-                            ثبت سفارش جدید
-                        </button>
-                        <button class="btn btn-outline-secondary" @onclick="GoToHome">
-                            بازگشت به صفحه اصلی
-                        </button>
-                    </div>
-
-                    <div class="alert alert-info mt-4 mb-0">
-                        کارشناسان ما به زودی با شما تماس خواهند گرفت.
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-}
-
-@code {
-    [Parameter]
-    public int OrderId { get; set; }
-
-    Order? order;
-
-    protected override async Task OnInitializedAsync()
-    {
-        order = await Db.Orders
-            .Include(o => o.Items)
-                .ThenInclude(i => i.DocumentType)
-            .FirstOrDefaultAsync(o => o.Id == OrderId);
-    }
-
-    string GetStatusText(string status) => status switch
-    {
-        "PendingPayment" => "در انتظار پرداخت",
-        "Paid" => "پرداخت شده",
-        "Pending" => "در انتظار بررسی",
-        "InProgress" => "در حال انجام",
-        "Completed" => "تکمیل شده",
-        "Cancelled" => "لغو شده",
-        _ => status
-    };
-
-    void GoToNewOrder()
-    {
-        Navigation.NavigateTo("/order/create");
-    }
-
-    void GoToHome()
-    {
-        Navigation.NavigateTo("/");
-    }
-} *@
-
-            
-@page "/order/success/{OrderId:int}"
+﻿@page "/order/success/{OrderId:int}"
 
 @using TranslationOffice.Data
 @using TranslationOffice.Models
 @using TranslationOffice.Services
 @using Microsoft.EntityFrameworkCore
 @using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.JSInterop
 @using System.Security.Claims
 
 @inject ApplicationDbContext Db
 @inject NavigationManager Navigation
 @inject AuthenticationStateProvider AuthStateProvider
+@inject IJSRuntime JS
 
 @rendermode InteractiveServer
 
@@ -296,24 +170,33 @@ else
     [SupplyParameterFromQuery(Name = "token")]
     public string? Token { get; set; }
 
+    [SupplyParameterFromQuery(Name = "claimed")]
+    public int? Claimed { get; set; }
+
     private Order? order;
 
     private bool isLoading = true;
     private bool canView;
     private bool showClaimButton;
     private bool isAuthenticated;
+    private bool shouldClearGuestCart;
+    private bool cartCleared;
 
     private string claimUrl = "";
     private string loginUrl = "";
     private string registerUrl = "";
+
+    private IJSObjectReference? cartStorage;
 
     protected override async Task OnParametersSetAsync()
     {
         isLoading = true;
         canView = false;
         showClaimButton = false;
+        shouldClearGuestCart = false;
 
         order = await Db.Orders
+            .AsNoTracking()
             .Include(o => o.Items)
                 .ThenInclude(i => i.DocumentType)
             .FirstOrDefaultAsync(o => o.Id == OrderId);
@@ -324,30 +207,43 @@ else
             return;
         }
 
-        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var authState =
+            await AuthStateProvider.GetAuthenticationStateAsync();
+
         var user = authState.User;
 
         isAuthenticated = user.Identity?.IsAuthenticated == true;
 
-        var currentUserId = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        var currentUserId =
+            user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
 
-        var isOwner = isAuthenticated &&
-                      !string.IsNullOrWhiteSpace(currentUserId) &&
-                      order.UserId == currentUserId;
+        var isOwner =
+            isAuthenticated &&
+            !string.IsNullOrWhiteSpace(currentUserId) &&
+            order.UserId == currentUserId;
 
-        var validGuestToken = order.UserId == null &&
-                              GuestOrderToken.Verify(
-                                  Token,
-                                  order.GuestAccessTokenHash);
+        var validGuestToken =
+            order.UserId == null &&
+            GuestOrderToken.Verify(
+                Token,
+                order.GuestAccessTokenHash);
 
         canView = isOwner || validGuestToken;
 
-        if (canView && order.UserId == null)
+        if (isOwner)
+        {
+            showClaimButton = false;
+
+            // فقط اگر اتصال سفارش با موفقیت انجام شده باشد،
+            // سبد مهمان مرورگر پاک می‌شود.
+            shouldClearGuestCart = Claimed == 1;
+        }
+        else if (validGuestToken)
         {
             showClaimButton = true;
 
             claimUrl =
-                $"/Account/ClaimOrder?orderId={order.Id}&token={Uri.EscapeDataString(Token!)}";
+                $"/order/claim/{order.Id}?token={Uri.EscapeDataString(Token!)}";
 
             loginUrl =
                 $"/Account/Login?ReturnUrl={Uri.EscapeDataString(claimUrl)}";
@@ -357,6 +253,28 @@ else
         }
 
         isLoading = false;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!shouldClearGuestCart || cartCleared)
+            return;
+
+        try
+        {
+            cartStorage ??= await JS.InvokeAsync<IJSObjectReference>(
+                "import",
+                "./js/orderCartStorage.js");
+
+            await cartStorage.InvokeVoidAsync("clearCart");
+
+            cartCleared = true;
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine(
+                $"پاک‌سازی سبد مهمان ناموفق بود: {ex}");
+        }
     }
 
     private string GetStatusText(string status) => status switch

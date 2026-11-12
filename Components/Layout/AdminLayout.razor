@@ -1,0 +1,142 @@
+﻿@inherits LayoutComponentBase
+
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Identity
+
+@inject NavigationManager Navigation
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<div class="admin-layout" dir="rtl">
+
+    <!-- Sidebar -->
+    <aside class="admin-sidebar @(sidebarOpen ? "sidebar-open" : "")">
+
+        <div class="admin-brand">
+            <div class="admin-brand-icon">
+                <i class="bi bi-translate"></i>
+            </div>
+            <div>
+                <strong>دارالترجمه رسمی</strong>
+                <span>پنل مدیریت</span>
+            </div>
+        </div>
+
+        <div class="admin-sidebar-caption">مدیریت سیستم</div>
+
+        <nav class="admin-menu">
+
+            <NavLink href="/admin/orders"
+                     Match="NavLinkMatch.All"
+                     class="admin-menu-link">
+                <i class="bi bi-grid-1x2"></i>
+                <span>داشبورد</span>
+            </NavLink>
+
+            <NavLink href="/admin/orders" class="admin-menu-link">
+                <i class="bi bi-receipt"></i>
+                <span>مدیریت سفارش‌ها</span>
+            </NavLink>
+
+            <NavLink href="/admin/documents" class="admin-menu-link">
+                <i class="bi bi-file-earmark-text"></i>
+                <span>مدیریت اسناد</span>
+            </NavLink>
+
+            <NavLink href="/admin/translators" class="admin-menu-link">
+                <i class="bi bi-people"></i>
+                <span>مترجمان</span>
+            </NavLink>
+
+        </nav>
+
+        <div class="admin-sidebar-bottom">
+            <a href="/" class="admin-menu-link">
+                <i class="bi bi-house"></i>
+                <span>بازگشت به سایت</span>
+            </a>
+        </div>
+
+    </aside>
+
+    <!-- Main Area -->
+    <div class="admin-main">
+
+        <!-- Header -->
+        <header class="admin-header">
+
+            <div class="admin-header-right">
+                <button type="button"
+                        class="admin-toggle"
+                        @onclick="ToggleSidebar">
+                    <i class="bi bi-list"></i>
+                </button>
+
+                <div class="admin-page-title">
+                    <strong>پنل مدیریت</strong>
+                    <span>مدیریت دارالترجمه</span>
+                </div>
+            </div>
+
+            <div class="admin-header-left">
+
+                <AuthorizeView>
+                    <Authorized Context="auth">
+                        <div class="admin-user">
+                            <div class="admin-user-avatar">
+                                <i class="bi bi-person-fill"></i>
+                            </div>
+
+                            <div class="admin-user-info">
+                                <strong>@auth.User.Identity?.Name</strong>
+                                <span>مدیر سیستم</span>
+                            </div>
+                        </div>
+                    </Authorized>
+                </AuthorizeView>
+
+                <a href="/Account/Logout"
+                   data-enhance-nav="false"
+                   class="admin-logout">
+
+                    <i class="bi bi-box-arrow-left"></i>
+                    <span>خروج</span>
+
+                </a>
+
+            </div>
+
+        </header>
+
+        <!-- Content -->
+        <main class="admin-content">
+            @Body
+        </main>
+
+        <!-- Footer -->
+        <footer class="admin-footer">
+            <span>پنل مدیریت دارالترجمه</span>
+            <span>تمام حقوق محفوظ است © @DateTime.Now.Year</span>
+        </footer>
+
+    </div>
+
+    @if (sidebarOpen)
+    {
+        <div class="admin-overlay" @onclick="CloseSidebar"></div>
+    }
+
+</div>
+
+@code {
+    private bool sidebarOpen;
+
+    private void ToggleSidebar()
+    {
+        sidebarOpen = !sidebarOpen;
+    }
+
+    private void CloseSidebar()
+    {
+        sidebarOpen = false;
+    }
+}

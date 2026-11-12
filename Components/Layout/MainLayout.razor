@@ -1,152 +1,211 @@
 ﻿@inherits LayoutComponentBase
+
+@using System.Security.Claims
 @using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.EntityFrameworkCore
+@using TranslationOffice.Data
+@using TranslationOffice.Models
 
-<div class="app-wrapper" dir="rtl">
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject IDbContextFactory<ApplicationDbContext> DbFactory
 
-    <nav class="navbar navbar-expand-lg navbar-dark app-navbar">
-        <div class="container">
+<HeadContent>
+    <link href="/css/mainlayout.css?v=4" rel="stylesheet" />
+</HeadContent>
 
-            <a class="navbar-brand fw-bold" href="/">
-                <span class="brand-icon">📄</span>
-                دارالترجمه رسمی
-            </a>
+<div class="app-wrapper home-layout" dir="rtl">
 
-            <button class="navbar-toggler"
-                    type="button"
-                    data-bs-toggle="collapse"
-                    data-bs-target="#mainNav"
-                    aria-controls="mainNav"
-                    aria-expanded="false"
-                    aria-label="نمایش منو">
-                <span class="navbar-toggler-icon"></span>
-            </button>
+    <header class="site-header">
+        <div class="layout-container">
+            <nav class="main-navbar">
 
-            <div class="collapse navbar-collapse" id="mainNav">
+                <a href="/" class="brand" data-enhance-nav="false">
+                    <span class="brand-logo">
+                        <span class="brand-logo-icon">ت</span>
+                    </span>
+                    <span class="brand-text">
+                        <strong>دارالترجمه رسمی</strong>
+                        <small>ترجمه دقیق، اعتماد ماندگار</small>
+                    </span>
+                </a>
 
-                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                <button class="mobile-menu-toggle"
+                        type="button"
+                        @onclick="ToggleMenu"
+                        aria-controls="mainNav"
+                        aria-expanded="@isMenuOpen"
+                        aria-label="نمایش یا بستن منو">
+                    <span class="@(isMenuOpen ? "toggle-line open" : "toggle-line")"></span>
+                    <span class="@(isMenuOpen ? "toggle-line open" : "toggle-line")"></span>
+                    <span class="@(isMenuOpen ? "toggle-line open" : "toggle-line")"></span>
+                </button>
 
-                    <li class="nav-item">
-                        <NavLink class="nav-link"
-                                 href="/"
-                                 Match="NavLinkMatch.All">
-                            صفحه اصلی
-                        </NavLink>
-                    </li>
+                <div class="main-nav-content @(isMenuOpen ? "is-open" : "")" id="mainNav">
 
-                    <li class="nav-item">
-                        <NavLink class="nav-link" href="/order/create">
-                            ثبت سفارش
-                        </NavLink>
-                    </li>
+                    <ul class="navbar-nav main-menu">
+                        <li class="nav-item">
+                            <NavLink class="nav-link" href="/" Match="NavLinkMatch.All" @onclick="CloseMenu">
+                                <span class="menu-icon">⌂</span>
+                                صفحه اصلی
+                            </NavLink>
+                        </li>
 
-                    <AuthorizeView Roles="Customer">
-                        <Authorized>
+                        <li class="nav-item">
+                            <NavLink class="nav-link" href="/order/create" @onclick="CloseMenu">
+                                <span class="menu-icon">＋</span>
+                                ثبت سفارش
+                            </NavLink>
+                        </li>
+
+                        @if (isCustomer)
+                        {
                             <li class="nav-item">
-                                <NavLink class="nav-link" href="/account/orders">
+                                <NavLink class="nav-link" href="/account/orders" @onclick="CloseMenu">
+                                    <span class="menu-icon">▤</span>
                                     سفارش‌های من
                                 </NavLink>
                             </li>
-                        </Authorized>
-                    </AuthorizeView>
+                        }
 
-                    <AuthorizeView Roles="Admin">
-                        <Authorized>
+                        @if (isAdmin)
+                        {
                             <li class="nav-item">
-                                <NavLink class="nav-link" href="/admin/orders">
-                                    مدیریت سفارش‌ها
+                                <NavLink class="nav-link" href="/admin/orders" @onclick="CloseMenu">
+                                    <span class="menu-icon">▦</span>
+                                    سفارش‌ها
                                 </NavLink>
                             </li>
-
                             <li class="nav-item">
-                                <NavLink class="nav-link" href="/admin/documents">
-                                    مدیریت اسناد
+                                <NavLink class="nav-link" href="/admin/documents" @onclick="CloseMenu">
+                                    <span class="menu-icon">▧</span>
+                                    اسناد
                                 </NavLink>
                             </li>
-
                             <li class="nav-item">
-                                <NavLink class="nav-link" href="/admin/translators">
-                                    مدیریت مترجمان
+                                <NavLink class="nav-link" href="/admin/translators" @onclick="CloseMenu">
+                                    <span class="menu-icon">♙</span>
+                                    مترجمان
                                 </NavLink>
                             </li>
-                        </Authorized>
-                    </AuthorizeView>
+                        }
 
-                    <AuthorizeView Roles="Translator">
-                        <Authorized>
+                        @if (isTranslator)
+                        {
                             <li class="nav-item">
-                                <NavLink class="nav-link" href="/translator/orders">
+                                <NavLink class="nav-link" href="/translator/orders" @onclick="CloseMenu">
+                                    <span class="menu-icon">▤</span>
                                     پنل مترجم
                                 </NavLink>
                             </li>
-                        </Authorized>
-                    </AuthorizeView>
+                        }
+                    </ul>
 
-                </ul>
+                    <div class="nav-actions">
+                        <AuthorizeView>
+                            <Authorized Context="auth">
+                                <div class="user-profile">
+                                    <div class="user-avatar">
+                                        @(GetInitial(auth.User.Identity?.Name))
+                                    </div>
+                                    <div class="user-info">
+                                        <span>خوش آمدید</span>
+                                        <strong>@auth.User.Identity?.Name</strong>
+                                    </div>
+                                </div>
+                                <a href="/Account/Logout" data-enhance-nav="false" class="logout-link">
+                                    <span>↪</span>
+                                    خروج
+                                </a>
+                            </Authorized>
+                            <NotAuthorized>
+                                <a href="/Account/Login" data-enhance-nav="false" class="login-link">ورود</a>
+                                <a href="/Account/Register" data-enhance-nav="false" class="register-link">ثبت‌نام</a>
+                            </NotAuthorized>
+                        </AuthorizeView>
 
-                <div class="d-flex align-items-center gap-2 flex-wrap mt-3 mt-lg-0">
-
-                    <AuthorizeView>
-                        <Authorized Context="auth">
-
-                            <div class="user-welcome">
-                                <span class="user-avatar">👤</span>
-                                <span>
-                                    خوش آمدید،
-                                    <strong>@auth.User.Identity?.Name</strong>
-                                </span>
-                            </div>
-
-                            <a href="/Account/Logout"
-                               class="btn btn-outline-light btn-sm px-3">
-                                خروج
-                            </a>
-
-                        </Authorized>
-
-                        <NotAuthorized>
-
-                            <a href="/Account/Login"
-                               class="btn btn-outline-light btn-sm px-3">
-                                ورود
-                            </a>
-
-                            <a href="/Account/Register"
-                               class="btn btn-gold btn-sm px-3">
-                                ثبت‌نام
-                            </a>
-
-                        </NotAuthorized>
-                    </AuthorizeView>
-
-                    <a href="/order/create"
-                       class="btn btn-gold fw-semibold">
-                        ثبت سفارش جدید
-                    </a>
-
+                        <a href="/order/create" class="header-order-button" @onclick="CloseMenu">
+                            ثبت سفارش جدید
+                            <span>←</span>
+                        </a>
+                    </div>
                 </div>
-
-            </div>
+            </nav>
         </div>
-    </nav>
+    </header>
 
     <main class="app-main">
         @Body
     </main>
 
-    <footer class="app-footer">
-        <div class="container">
-            <div class="footer-content">
-                <div>
-                    <div class="footer-brand">دارالترجمه رسمی</div>
-                    <p>خدمات ترجمه رسمی، دقیق و مطمئن</p>
+    <footer class="site-footer">
+        <div class="layout-container">
+            <div class="footer-main">
+                <div class="footer-brand-section">
+                    <div class="footer-brand">
+                        <span class="footer-brand-icon">ت</span>
+                        <strong>دارالترجمه رسمی</strong>
+                    </div>
+                    <p>
+                        خدمات ترجمه رسمی، دقیق و مطمئن؛
+                        همراه شما در مسیر ارتباط با جهان.
+                    </p>
                 </div>
-
-                <div class="footer-copy">
-                    © تمامی حقوق متعلق به دارالترجمه رسمی است.
+                <div class="footer-links">
+                    <strong>دسترسی سریع</strong>
+                    <a href="/">صفحه اصلی</a>
+                    <a href="/order/create">ثبت سفارش</a>
+                    <a href="/account/orders">سفارش‌های من</a>
                 </div>
+                <div class="footer-contact">
+                    <strong>خدمات ما</strong>
+                    <span>ترجمه رسمی اسناد</span>
+                    <span>ترجمه مدارک تحصیلی</span>
+                    <span>ترجمه مدارک هویتی</span>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <span>© تمامی حقوق متعلق به دارالترجمه رسمی است.</span>
+                <span>کیفیت، دقت و اعتماد در ترجمه</span>
             </div>
         </div>
     </footer>
-
 </div>
 
+@code {
+    private bool isAdmin;
+    private bool isTranslator;
+    private bool isCustomer;
+    private bool isMenuOpen;
+
+    private void ToggleMenu() => isMenuOpen = !isMenuOpen;
+    private void CloseMenu() => isMenuOpen = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        if (user.Identity?.IsAuthenticated != true) return;
+
+        var userId = user.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrWhiteSpace(userId)) return;
+
+        await using var db = await DbFactory.CreateDbContextAsync();
+
+        var role = await db.Users
+            .AsNoTracking()
+            .Where(x => x.Id == userId)
+            .Select(x => x.Role)
+            .FirstOrDefaultAsync();
+
+        isAdmin = role == "Admin";
+        isTranslator = role == "Translator";
+        isCustomer = role == "Customer";
+    }
+
+    private static string GetInitial(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return "ک";
+        return name.Trim().Substring(0, 1);
+    }
+}

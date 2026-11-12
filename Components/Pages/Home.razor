@@ -1,443 +1,452 @@
 ﻿@page "/"
 
-<PageTitle>دارالترجمه رسمی | ثبت سفارش آنلاین</PageTitle>
+<PageTitle>دارالترجمه رسمی | ترجمه دقیق، اعتماد ماندگار</PageTitle>
+
+<HeadContent>
+    <link href="/css/home.css" rel="stylesheet" />
+</HeadContent>
 
 <div class="home-page" dir="rtl">
 
-    <!-- HERO SLIDER -->
+    <!-- HERO -->
     <section class="hero-section">
+        <div class="hero-glow hero-glow-one"></div>
+        <div class="hero-glow hero-glow-two"></div>
 
-        <div id="homeHeroSlider"
-             class="carousel slide carousel-fade"
-             data-bs-ride="carousel"
-             data-bs-interval="5500">
+        <div class="home-container hero-grid">
 
-            <div class="carousel-indicators">
-                <button type="button"
-                        data-bs-target="#homeHeroSlider"
-                        data-bs-slide-to="0"
-                        class="active"
-                        aria-current="true"
-                        aria-label="اسلاید اول"></button>
+            <div class="hero-content">
 
-                <button type="button"
-                        data-bs-target="#homeHeroSlider"
-                        data-bs-slide-to="1"
-                        aria-label="اسلاید دوم"></button>
-
-                <button type="button"
-                        data-bs-target="#homeHeroSlider"
-                        data-bs-slide-to="2"
-                        aria-label="اسلاید سوم"></button>
-            </div>
-
-            <div class="carousel-inner">
-
-                <!-- SLIDE 1 -->
-                <div class="carousel-item active">
-                    <div class="hero-slide hero-slide-one">
-                        <div class="container">
-                            <div class="row align-items-center">
-
-                                <div class="col-lg-7">
-                                    <div class="hero-content">
-
-                                        <span class="hero-label">
-                                            خدمات ترجمه رسمی آنلاین
-                                        </span>
-
-                                        <h1>
-                                            ترجمه رسمی مدارک،
-                                            <span>آسان‌تر از همیشه</span>
-                                        </h1>
-
-                                        <p>
-                                            بدون مراجعه حضوری سفارش خود را ثبت کنید،
-                                            هزینه را مشاهده کنید و مراحل ترجمه مدارک
-                                            خود را به آسانی پیگیری کنید.
-                                        </p>
-
-                                        <div class="hero-actions">
-                                            <a href="/order/create"
-                                               class="btn hero-primary-btn">
-                                                ثبت سفارش ترجمه
-                                                <span>←</span>
-                                            </a>
-
-                                            <a href="#services"
-                                               class="btn hero-secondary-btn">
-                                                مشاهده خدمات
-                                            </a>
-                                        </div>
-
-                                        <div class="hero-trust">
-                                            <span>✓ ترجمه رسمی</span>
-                                            <span>✓ قیمت شفاف</span>
-                                            <span>✓ پیگیری سفارش</span>
-                                        </div>
-
-                                    </div>
-                                </div>
-
-                                <div class="col-lg-5 d-none d-lg-block">
-                                    <div class="hero-visual">
-
-                                        <div class="visual-circle"></div>
-
-                                        <div class="document-card document-card-main">
-                                            <div class="document-icon">📄</div>
-                                            <h5>ترجمه رسمی مدارک</h5>
-                                            <p>ترجمه دقیق و معتبر</p>
-                                            <div class="document-line"></div>
-                                            <div class="document-line short"></div>
-                                            <div class="document-line"></div>
-                                            <div class="document-stamp">✓</div>
-                                        </div>
-
-                                        <div class="floating-card">
-                                            <span>✓</span>
-                                            <div>
-                                                <strong>ثبت سفارش آنلاین</strong>
-                                                <small>سریع و آسان</small>
-                                            </div>
-                                        </div>
-
-                                    </div>
-                                </div>
-
-                            </div>
-                        </div>
-                    </div>
+                <div class="hero-eyebrow">
+                    <span class="eyebrow-dot"></span>
+                    خدمات ترجمه رسمی و تخصصی
                 </div>
 
-                <!-- SLIDE 2 -->
-                <div class="carousel-item">
-                    <div class="hero-slide hero-slide-two">
-                        <div class="container">
-                            <div class="row align-items-center">
+                <h1>
+                    مدارک شما،
+                    <span>با دقت و اطمینان</span>
+                    به زبان جهان
+                </h1>
 
-                                <div class="col-lg-8">
-                                    <div class="hero-content">
+                <p class="hero-description">
+                    سفارش ترجمه رسمی مدارک خود را به‌سادگی ثبت کنید.
+                    از ثبت درخواست تا دریافت ترجمه، تمام مراحل را
+                    به‌صورت آنلاین و شفاف پیگیری کنید.
+                </p>
 
-                                        <span class="hero-label">
-                                            شفافیت در هزینه‌ها
-                                        </span>
+                <div class="hero-actions">
+                    <a href="/order/create" class="hero-primary-btn">
+                        ثبت سفارش ترجمه
+                        <span>←</span>
+                    </a>
 
-                                        <h1>
-                                            قبل از ثبت سفارش،
-                                            <span>قیمت را بدانید</span>
-                                        </h1>
-
-                                        <p>
-                                            نوع مدرک، تعداد صفحات و تأییدات مورد نیاز
-                                            را انتخاب کنید و هزینه سفارش خود را
-                                            به صورت خودکار مشاهده کنید.
-                                        </p>
-
-                                        <div class="hero-actions">
-                                            <a href="/order/create"
-                                               class="btn hero-primary-btn">
-                                                محاسبه قیمت و ثبت سفارش
-                                                <span>←</span>
-                                            </a>
-                                        </div>
-
-                                        <div class="hero-trust">
-                                            <span>✓ محاسبه خودکار</span>
-                                            <span>✓ جزئیات شفاف</span>
-                                            <span>✓ بدون هزینه پنهان</span>
-                                        </div>
-
-                                    </div>
-                                </div>
-
-                                <div class="col-lg-4 d-none d-lg-block">
-                                    <div class="price-visual">
-                                        <div class="price-icon">💰</div>
-                                        <span>محاسبه هزینه ترجمه</span>
-                                        <div class="price-divider"></div>
-                                        <div class="price-row">
-                                            <span>ترجمه مدرک</span>
-                                            <strong>محاسبه خودکار</strong>
-                                        </div>
-                                        <div class="price-row">
-                                            <span>تأییدات رسمی</span>
-                                            <strong>انتخابی</strong>
-                                        </div>
-                                        <div class="price-total">
-                                            هزینه نهایی سفارش
-                                            <strong>شفاف و مشخص</strong>
-                                        </div>
-                                    </div>
-                                </div>
-
-                            </div>
-                        </div>
-                    </div>
+                    <a href="/account/orders" class="hero-secondary-btn">
+                        پیگیری سفارش
+                        <span>↗</span>
+                    </a>
                 </div>
 
-                <!-- SLIDE 3 -->
-                <div class="carousel-item">
-                    <div class="hero-slide hero-slide-three">
-                        <div class="container">
-                            <div class="row align-items-center">
-
-                                <div class="col-lg-8">
-                                    <div class="hero-content">
-
-                                        <span class="hero-label">
-                                            همراه شما تا تحویل نهایی
-                                        </span>
-
-                                        <h1>
-                                            سفارش خود را
-                                            <span>لحظه‌به‌لحظه پیگیری کنید</span>
-                                        </h1>
-
-                                        <p>
-                                            از زمان ثبت سفارش تا انجام ترجمه و دریافت
-                                            فایل‌های نهایی، وضعیت سفارش خود را
-                                            از پنل کاربری دنبال کنید.
-                                        </p>
-
-                                        <div class="hero-actions">
-                                            <a href="/account/orders"
-                                               class="btn hero-primary-btn">
-                                                مشاهده سفارش‌های من
-                                                <span>←</span>
-                                            </a>
-
-                                            <a href="/order/create"
-                                               class="btn hero-secondary-btn">
-                                                ثبت سفارش جدید
-                                            </a>
-                                        </div>
-
-                                        <div class="hero-trust">
-                                            <span>✓ پیگیری آسان</span>
-                                            <span>✓ اطلاع از وضعیت</span>
-                                            <span>✓ دریافت فایل نهایی</span>
-                                        </div>
-
-                                    </div>
-                                </div>
-
-                                <div class="col-lg-4 d-none d-lg-block">
-                                    <div class="tracking-visual">
-                                        <div class="tracking-title">
-                                            <span>وضعیت سفارش</span>
-                                            <strong>در حال انجام</strong>
-                                        </div>
-
-                                        <div class="tracking-step done">
-                                            <span>✓</span>
-                                            <div>
-                                                <strong>ثبت سفارش</strong>
-                                                <small>سفارش دریافت شد</small>
-                                            </div>
-                                        </div>
-
-                                        <div class="tracking-step done">
-                                            <span>✓</span>
-                                            <div>
-                                                <strong>بررسی مدارک</strong>
-                                                <small>اطلاعات بررسی شد</small>
-                                            </div>
-                                        </div>
-
-                                        <div class="tracking-step current">
-                                            <span>●</span>
-                                            <div>
-                                                <strong>ترجمه مدارک</strong>
-                                                <small>در حال انجام</small>
-                                            </div>
-                                        </div>
-
-                                        <div class="tracking-step">
-                                            <span>4</span>
-                                            <div>
-                                                <strong>تحویل نهایی</strong>
-                                                <small>مرحله بعدی</small>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                            </div>
-                        </div>
+                <div class="hero-trust">
+                    <div class="trust-avatars">
+                        <span>ت</span>
+                        <span>م</span>
+                        <span>ر</span>
+                    </div>
+                    <div>
+                        <strong>فرآیند ساده و آنلاین</strong>
+                        <small>از ثبت درخواست تا پیگیری سفارش</small>
                     </div>
                 </div>
 
             </div>
 
-            <button class="carousel-control-prev"
-                    type="button"
-                    data-bs-target="#homeHeroSlider"
-                    data-bs-slide="prev"
-                    aria-label="اسلاید قبلی">
-                <span class="carousel-control-prev-icon"></span>
-            </button>
+            <div class="hero-visual">
 
-            <button class="carousel-control-next"
-                    type="button"
-                    data-bs-target="#homeHeroSlider"
-                    data-bs-slide="next"
-                    aria-label="اسلاید بعدی">
-                <span class="carousel-control-next-icon"></span>
-            </button>
+                <div class="visual-orbit orbit-one"></div>
+                <div class="visual-orbit orbit-two"></div>
 
+                <div class="document-card">
+
+                    <div class="document-top">
+                        <div class="document-brand">
+                            <span class="document-brand-icon">ت</span>
+                            <div>
+                                <strong>دارالترجمه رسمی</strong>
+                                <small>OFFICIAL TRANSLATION</small>
+                            </div>
+                        </div>
+
+                        <span class="document-status">نمونه سند</span>
+                    </div>
+
+                    <div class="document-heading">
+                        <span class="document-line short"></span>
+                        <strong>گواهی ترجمه</strong>
+                        <span class="document-line"></span>
+                    </div>
+
+                    <div class="document-seal">
+                        <div class="seal-inner">
+                            <span>ت</span>
+                            <small>OFFICIAL</small>
+                        </div>
+                    </div>
+
+                    <div class="document-lines">
+                        <span></span>
+                        <span></span>
+                        <span class="medium"></span>
+                        <span></span>
+                        <span class="short"></span>
+                    </div>
+
+                    <div class="document-signature">
+                        <span>امضا و تأیید</span>
+                        <strong>✓</strong>
+                    </div>
+
+                    <div class="document-footer">
+                        <span>ترجمه دقیق</span>
+                        <span>اعتماد ماندگار</span>
+                    </div>
+
+                </div>
+
+                <div class="floating-card floating-card-top">
+                    <span class="floating-icon">✓</span>
+                    <div>
+                        <strong>ثبت آنلاین سفارش</strong>
+                        <small>سریع و آسان</small>
+                    </div>
+                </div>
+
+                <div class="floating-card floating-card-bottom">
+                    <span class="floating-icon">↗</span>
+                    <div>
+                        <strong>پیگیری مرحله‌ای</strong>
+                        <small>مشاهده وضعیت سفارش</small>
+                    </div>
+                </div>
+
+                <div class="visual-decoration decoration-one"></div>
+                <div class="visual-decoration decoration-two"></div>
+
+            </div>
         </div>
 
+        <div class="hero-bottom-line"></div>
     </section>
 
-    <div class="container">
 
-        <!-- FEATURES -->
-        <section id="services" class="features-section">
+    <!-- QUICK FEATURES -->
+    <section class="quick-features">
+        <div class="home-container quick-features-grid">
+
+            <div class="quick-feature">
+                <span class="quick-feature-icon">⌁</span>
+                <div>
+                    <strong>ثبت سفارش آنلاین</strong>
+                    <small>بدون مراجعه اولیه</small>
+                </div>
+            </div>
+
+            <div class="quick-feature">
+                <span class="quick-feature-icon">◷</span>
+                <div>
+                    <strong>پیگیری سفارش</strong>
+                    <small>مشاهده وضعیت درخواست</small>
+                </div>
+            </div>
+
+            <div class="quick-feature">
+                <span class="quick-feature-icon">▤</span>
+                <div>
+                    <strong>مدیریت مدارک</strong>
+                    <small>دسترسی به اسناد سفارش</small>
+                </div>
+            </div>
+
+            <div class="quick-feature">
+                <span class="quick-feature-icon">✓</span>
+                <div>
+                    <strong>فرآیند شفاف</strong>
+                    <small>اطلاع از مراحل انجام کار</small>
+                </div>
+            </div>
+
+        </div>
+    </section>
+
+
+    <!-- SERVICES -->
+    <section class="services-section">
+        <div class="home-container">
 
             <div class="section-heading">
-                <span>خدمات ما</span>
-                <h2>چرا دارالترجمه ما؟</h2>
+                <div class="section-kicker">خدمات ما</div>
+                <h2>چه مدارکی را می‌توانید ترجمه کنید؟</h2>
                 <p>
-                    تجربه‌ای ساده، مطمئن و حرفه‌ای برای ترجمه مدارک شما
+                    درخواست ترجمه مدارک خود را در چند مرحله ساده ثبت کنید
+                    و روند انجام آن را از طریق پنل کاربری دنبال کنید.
                 </p>
             </div>
 
-            <div class="row g-4">
+            <div class="services-grid">
 
-                <div class="col-md-6 col-lg-3">
-                    <div class="feature-card">
-                        <div class="feature-icon teal">📋</div>
-                        <h5>انتخاب آسان مدرک</h5>
+                <article class="service-card">
+                    <div class="service-icon service-icon-blue">
+                        <span>▤</span>
+                    </div>
+                    <div class="service-card-content">
+                        <span class="service-number">01</span>
+                        <h3>مدارک هویتی</h3>
                         <p>
-                            انواع مدارک تحصیلی، هویتی، شرکتی و قراردادی
-                            در دسترس شماست.
+                            ترجمه مدارک شناسایی و اسناد مربوط به هویت
+                            و وضعیت شخصی.
                         </p>
                     </div>
-                </div>
+                    <a href="/order/create" class="service-link">
+                        ثبت درخواست <span>←</span>
+                    </a>
+                </article>
 
-                <div class="col-md-6 col-lg-3">
-                    <div class="feature-card">
-                        <div class="feature-icon gold">💰</div>
-                        <h5>قیمت شفاف</h5>
+                <article class="service-card featured-service">
+                    <div class="service-icon service-icon-teal">
+                        <span>▧</span>
+                    </div>
+                    <div class="service-card-content">
+                        <span class="service-number">02</span>
+                        <h3>مدارک تحصیلی</h3>
                         <p>
-                            محاسبه خودکار هزینه بر اساس نوع مدرک،
-                            تعداد صفحات و تأییدات.
+                            ترجمه مدارک دانشگاهی، گواهی‌ها و
+                            اسناد آموزشی.
                         </p>
                     </div>
-                </div>
+                    <a href="/order/create" class="service-link">
+                        ثبت درخواست <span>←</span>
+                    </a>
+                </article>
 
-                <div class="col-md-6 col-lg-3">
-                    <div class="feature-card">
-                        <div class="feature-icon blue">⏱️</div>
-                        <h5>پیگیری سفارش</h5>
+                <article class="service-card">
+                    <div class="service-icon service-icon-purple">
+                        <span>▣</span>
+                    </div>
+                    <div class="service-card-content">
+                        <span class="service-number">03</span>
+                        <h3>اسناد و مدارک رسمی</h3>
                         <p>
-                            از ثبت سفارش تا تحویل نهایی،
-                            وضعیت کار خود را پیگیری کنید.
+                            ثبت درخواست ترجمه انواع اسناد و
+                            مدارک رسمی و اداری.
                         </p>
                     </div>
-                </div>
-
-                <div class="col-md-6 col-lg-3">
-                    <div class="feature-card">
-                        <div class="feature-icon green">✓</div>
-                        <h5>تأییدات رسمی</h5>
-                        <p>
-                            امکان انتخاب تأیید دادگستری و
-                            وزارت امور خارجه.
-                        </p>
-                    </div>
-                </div>
+                    <a href="/order/create" class="service-link">
+                        ثبت درخواست <span>←</span>
+                    </a>
+                </article>
 
             </div>
 
-        </section>
+            <div class="services-bottom">
+                <span>برای شروع، کافی است درخواست خود را ثبت کنید.</span>
+                <a href="/order/create">
+                    شروع ثبت سفارش
+                    <span>←</span>
+                </a>
+            </div>
 
-        <!-- HOW IT WORKS -->
-        <section class="steps-section">
+        </div>
+    </section>
+
+
+    <!-- PROCESS -->
+    <section class="process-section">
+        <div class="home-container">
 
             <div class="section-heading">
-                <span>شروع آسان</span>
-                <h2>چطور سفارش ثبت کنیم؟</h2>
-                <p>فقط در چهار مرحله سفارش خود را ثبت کنید.</p>
+                <div class="section-kicker">فرآیند انجام سفارش</div>
+                <h2>از درخواست تا دریافت ترجمه</h2>
+                <p>
+                    مسیر انجام سفارش شما ساده، مشخص و قابل پیگیری است.
+                </p>
             </div>
 
-            <div class="row g-4">
+            <div class="process-grid">
 
-                <div class="col-md-6 col-lg-3">
-                    <div class="step-card">
-                        <div class="step-number">۱</div>
-                        <h6>انتخاب مدرک</h6>
-                        <p>نوع سند مورد نظر خود را انتخاب کنید.</p>
-                    </div>
+                <div class="process-step">
+                    <div class="process-number">۱</div>
+                    <div class="process-icon">＋</div>
+                    <h3>ثبت سفارش</h3>
+                    <p>
+                        اطلاعات اولیه سفارش و مدارک موردنیاز را ثبت کنید.
+                    </p>
                 </div>
 
-                <div class="col-md-6 col-lg-3">
-                    <div class="step-card">
-                        <div class="step-number">۲</div>
-                        <h6>تعیین جزئیات</h6>
-                        <p>تعداد صفحات و تأییدات را مشخص کنید.</p>
-                    </div>
+                <div class="process-connector"></div>
+
+                <div class="process-step">
+                    <div class="process-number">۲</div>
+                    <div class="process-icon">▤</div>
+                    <h3>بررسی مدارک</h3>
+                    <p>
+                        درخواست و مدارک شما توسط مجموعه بررسی می‌شود.
+                    </p>
                 </div>
 
-                <div class="col-md-6 col-lg-3">
-                    <div class="step-card">
-                        <div class="step-number">۳</div>
-                        <h6>مشاهده قیمت</h6>
-                        <p>هزینه سفارش به صورت خودکار محاسبه می‌شود.</p>
-                    </div>
+                <div class="process-connector"></div>
+
+                <div class="process-step">
+                    <div class="process-number">۳</div>
+                    <div class="process-icon">✎</div>
+                    <h3>انجام ترجمه</h3>
+                    <p>
+                        سفارش برای انجام مراحل ترجمه در جریان قرار می‌گیرد.
+                    </p>
                 </div>
 
-                <div class="col-md-6 col-lg-3">
-                    <div class="step-card">
-                        <div class="step-number">۴</div>
-                        <h6>ثبت سفارش</h6>
-                        <p>سفارش خود را نهایی و پیگیری کنید.</p>
-                    </div>
-                </div>
+                <div class="process-connector"></div>
 
-            </div>
-
-        </section>
-
-        <!-- INFORMATION -->
-        <section class="info-section">
-
-            <div class="row g-4">
-
-                <div class="col-lg-6">
-                    <div class="info-card">
-                        <h5>نکات مهم</h5>
-
-                        <ul>
-                            <li>قیمت‌ها بر اساس تنظیمات و نرخ‌های سیستم محاسبه می‌شوند.</li>
-                            <li>برخی مدارک بر اساس تعداد سطر یا صفحه قیمت‌گذاری می‌شوند.</li>
-                            <li>تأیید دادگستری و وزارت خارجه به صورت جداگانه قابل انتخاب است.</li>
-                            <li>پس از ثبت سفارش، وضعیت آن قابل پیگیری خواهد بود.</li>
-                        </ul>
-                    </div>
-                </div>
-
-                <div class="col-lg-6">
-                    <div class="info-card info-card-highlight">
-                        <span class="info-badge">شروع سریع</span>
-                        <h3>آماده ثبت سفارش هستید؟</h3>
-                        <p>
-                            همین حالا مدارک خود را انتخاب کنید و
-                            سفارش ترجمه را به صورت آنلاین ثبت کنید.
-                        </p>
-
-                        <a href="/order/create" class="btn info-btn">
-                            شروع ثبت سفارش
-                            <span>←</span>
-                        </a>
-                    </div>
+                <div class="process-step">
+                    <div class="process-number">۴</div>
+                    <div class="process-icon">✓</div>
+                    <h3>تحویل سفارش</h3>
+                    <p>
+                        وضعیت نهایی سفارش را مشاهده و مدارک را دریافت کنید.
+                    </p>
                 </div>
 
             </div>
 
-        </section>
+        </div>
+    </section>
 
-    </div>
+
+    <!-- WHY US -->
+    <section class="why-section">
+        <div class="home-container why-grid">
+
+            <div class="why-content">
+                <div class="section-kicker">تجربه‌ای ساده‌تر</div>
+                <h2>
+                    مدیریت ترجمه‌ها،
+                    <span>بدون سردرگمی</span>
+                </h2>
+
+                <p>
+                    سامانه آنلاین دارالترجمه به شما کمک می‌کند
+                    درخواست‌های خود را ثبت کنید، مدارک را ارسال کنید
+                    و از آخرین وضعیت سفارش‌هایتان مطلع شوید.
+                </p>
+
+                <div class="why-list">
+                    <div>
+                        <span>✓</span>
+                        <div>
+                            <strong>دسترسی به سفارش‌ها</strong>
+                            <small>مشاهده درخواست‌های ثبت‌شده در پنل کاربری</small>
+                        </div>
+                    </div>
+
+                    <div>
+                        <span>✓</span>
+                        <div>
+                            <strong>بارگذاری مدارک</strong>
+                            <small>ارسال فایل‌های مرتبط با سفارش</small>
+                        </div>
+                    </div>
+
+                    <div>
+                        <span>✓</span>
+                        <div>
+                            <strong>اطلاع از وضعیت ترجمه</strong>
+                            <small>پیگیری روند انجام سفارش</small>
+                        </div>
+                    </div>
+                </div>
+
+                <a href="/order/create" class="why-button">
+                    ثبت سفارش جدید
+                    <span>←</span>
+                </a>
+            </div>
+
+            <div class="why-visual">
+                <div class="dashboard-card">
+
+                    <div class="dashboard-header">
+                        <div>
+                            <small>پنل کاربری</small>
+                            <strong>مدیریت سفارش‌ها</strong>
+                        </div>
+                        <span class="dashboard-avatar">ک</span>
+                    </div>
+
+                    <div class="dashboard-welcome">
+                        <span>خوش آمدید</span>
+                        <strong>سفارش‌های شما</strong>
+                    </div>
+
+                    <div class="dashboard-order">
+                        <div class="dashboard-order-icon">▤</div>
+                        <div class="dashboard-order-info">
+                            <strong>درخواست ترجمه</strong>
+                            <small>مشاهده جزئیات سفارش</small>
+                        </div>
+                        <span class="dashboard-arrow">←</span>
+                    </div>
+
+                    <div class="dashboard-order">
+                        <div class="dashboard-order-icon second">▧</div>
+                        <div class="dashboard-order-info">
+                            <strong>مدارک ارسالی</strong>
+                            <small>مدیریت فایل‌ها</small>
+                        </div>
+                        <span class="dashboard-arrow">←</span>
+                    </div>
+
+                    <div class="dashboard-progress">
+                        <div class="dashboard-progress-title">
+                            <strong>روند انجام سفارش</strong>
+                            <span>قابل پیگیری</span>
+                        </div>
+                        <div class="progress-track">
+                            <span></span>
+                        </div>
+                        <small>مشاهده آخرین وضعیت از پنل کاربری</small>
+                    </div>
+
+                </div>
+
+                <div class="dashboard-decoration"></div>
+            </div>
+
+        </div>
+    </section>
+
+
+    <!-- CTA -->
+    <section class="final-cta-section">
+        <div class="home-container">
+            <div class="final-cta">
+
+                <div class="cta-decoration cta-decoration-one"></div>
+                <div class="cta-decoration cta-decoration-two"></div>
+
+                <div class="cta-content">
+                    <span class="cta-kicker">شروع یک مسیر ساده</span>
+                    <h2>برای ترجمه مدارکتان آماده‌اید؟</h2>
+                    <p>
+                        همین حالا درخواست خود را ثبت کنید و مراحل سفارش
+                        را به‌صورت آنلاین دنبال کنید.
+                    </p>
+                </div>
+
+                <a href="/order/create" class="cta-button">
+                    ثبت سفارش آنلاین
+                    <span>←</span>
+                </a>
+
+            </div>
+        </div>
+    </section>
 
 </div>

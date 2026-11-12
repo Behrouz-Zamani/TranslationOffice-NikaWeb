@@ -34,10 +34,10 @@ public class DocumentsController : ControllerBase
         if (string.IsNullOrWhiteSpace(userId))
             return Unauthorized();
 
-        // دریافت فایل و اطلاعات مدرک از دیتابیس
         var document = await _db.OrderDocuments
             .AsNoTracking()
             .Include(x => x.OrderItem)
+                .ThenInclude(x => x!.Order)
             .FirstOrDefaultAsync(
                 x => x.Id == documentId,
                 cancellationToken);
@@ -45,7 +45,6 @@ public class DocumentsController : ControllerBase
         if (document == null)
             return NotFound("فایل موردنظر پیدا نشد.");
 
-        // بررسی نقش کاربر
         var currentUser = await _db.Users
             .AsNoTracking()
             .FirstOrDefaultAsync(
@@ -60,19 +59,33 @@ public class DocumentsController : ControllerBase
             "Admin",
             StringComparison.OrdinalIgnoreCase);
 
+        var isCustomer = string.Equals(
+            currentUser.Role,
+            "Customer",
+            StringComparison.OrdinalIgnoreCase);
+
+        var isTranslator = string.Equals(
+            currentUser.Role,
+            "Translator",
+            StringComparison.OrdinalIgnoreCase);
+
+        // مالک سفارش فقط مدارک سفارش خودش را می‌تواند دانلود کند.
+        var isOrderOwner =
+            isCustomer &&
+            document.OrderItem?.Order != null &&
+            document.OrderItem.Order.UserId == userId;
+
+        // مترجم فقط مدارک آیتم‌هایی را می‌تواند دانلود کند
+        // که به خودش تخصیص داده شده‌اند.
         var isAssignedTranslator =
-            string.Equals(
-                currentUser.Role,
-                "Translator",
-                StringComparison.OrdinalIgnoreCase)
-            &&
+            isTranslator &&
+            document.OrderItem != null &&
             document.OrderItem.TranslatorId == userId;
 
-        // فقط مدیر یا مترجم مسئول مدرک اجازه دانلود دارد.
-        if (!isAdmin && !isAssignedTranslator)
+        // مدیر، مالک سفارش یا مترجم مسئول مجاز هستند.
+        if (!isAdmin && !isOrderOwner && !isAssignedTranslator)
             return Forbid();
 
-        // خواندن فایل از فضای ذخیره‌سازی خصوصی
         var fileBytes = await _storage.ReadAsync(
             document.StoredFileName,
             cancellationToken);
@@ -86,7 +99,6 @@ public class DocumentsController : ControllerBase
             ? "application/octet-stream"
             : document.ContentType;
 
-        // ارسال فایل به صورت دانلود
         return File(
             fileBytes,
             contentType,

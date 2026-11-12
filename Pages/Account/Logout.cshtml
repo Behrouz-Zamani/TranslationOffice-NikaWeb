@@ -1,4 +1,4 @@
-﻿@page "/Account/Logout"
+﻿@* @page "/Account/Logout"
 @model TranslationOffice.Pages.Account.LogoutModel
 
 @{
@@ -11,15 +11,33 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>خروج از حساب</title>
-    <link href="~/lib/bootstrap/dist/css/bootstrap.min.css" rel="stylesheet" />
+
+    <link href="@Url.Content("~/lib/bootstrap/dist/css/bootstrap.min.css")" rel="stylesheet" />
+
+    <style>
+            body {
+                font-family: Tahoma, sans-serif;
+            }
+
+            .logout-card {
+                width: 100%;
+                max-width: 420px;
+                border: none;
+                border-radius: 16px;
+            }
+    </style>
 </head>
+
 <body class="bg-light">
 
     <div class="container d-flex justify-content-center align-items-center"
          style="min-height: 100vh;">
 
-        <div class="card shadow-sm p-4 text-center"
-             style="width: 100%; max-width: 420px;">
+        <div class="card shadow-sm p-4 text-center logout-card">
+
+            <div class="mb-3" style="font-size: 42px;">
+                👋
+            </div>
 
             <h4 class="mb-3">خروج از حساب کاربری</h4>
 
@@ -28,20 +46,169 @@
             </p>
 
             <form method="post">
+
                 @Html.AntiForgeryToken()
 
                 <button type="submit" class="btn btn-danger w-100 mb-2">
-                    بله، خارج شو
+                    بله، از حساب خارج شو
                 </button>
 
                 <a href="/" class="btn btn-outline-secondary w-100">
-                    انصراف
+                    انصراف و بازگشت
                 </a>
+
             </form>
 
         </div>
 
     </div>
+
+</body>
+</html> *@
+
+@page "/Account/Logout"
+@model TranslationOffice.Pages.Account.LogoutModel
+
+@{
+    Layout = null;
+}
+
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>خروج از حساب کاربری</title>
+
+    <link href="~/lib/bootstrap/dist/css/bootstrap.min.css"
+          rel="stylesheet" />
+
+    <link rel="stylesheet"
+          href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css" />
+
+    <style>
+            body {
+                font-family: Tahoma, sans-serif;
+                background: #f4f7fb;
+            }
+
+            .logout-fallback {
+                width: 100%;
+                max-width: 400px;
+                margin: 100px auto;
+                padding: 30px;
+                background: white;
+                border-radius: 18px;
+                box-shadow: 0 8px 35px rgba(0,0,0,.07);
+                text-align: center;
+            }
+
+                .logout-fallback h5 {
+                    font-weight: 700;
+                    margin-bottom: 15px;
+                }
+
+            .swal2-popup {
+                border-radius: 20px !important;
+                font-family: Tahoma, sans-serif !important;
+                padding: 30px !important;
+            }
+
+            .swal2-title {
+                font-size: 21px !important;
+                color: #263449 !important;
+            }
+
+            .swal2-html-container {
+                font-size: 14px !important;
+                line-height: 2 !important;
+                color: #758195 !important;
+            }
+
+            .swal2-confirm,
+            .swal2-cancel {
+                border-radius: 9px !important;
+                font-family: Tahoma, sans-serif !important;
+                font-size: 13px !important;
+                padding: 11px 24px !important;
+            }
+    </style>
+</head>
+
+<body>
+
+    <form id="logoutForm" method="post" style="display:none">
+        @Html.AntiForgeryToken()
+    </form>
+
+    <!-- در صورت بارگذاری نشدن کتابخانه، این فرم جایگزین است -->
+    <div class="logout-fallback" id="logoutFallback">
+        <div style="font-size:45px;margin-bottom:15px">👋</div>
+
+        <h5>خروج از حساب کاربری</h5>
+
+        <p class="text-muted">
+            آیا مطمئن هستید که می‌خواهید از حساب خود خارج شوید؟
+        </p>
+
+        <button type="button"
+                class="btn btn-danger w-100 mb-2"
+                onclick="confirmLogoutFallback()">
+            بله، از حساب خارج شو
+        </button>
+
+        <a href="/" class="btn btn-outline-secondary w-100">
+            انصراف و بازگشت
+        </a>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+    <script>
+
+            function submitLogout() {
+                document.getElementById("logoutForm").submit();
+            }
+
+            function confirmLogoutFallback() {
+                submitLogout();
+            }
+
+            document.addEventListener("DOMContentLoaded", function () {
+
+                if (typeof Swal === "undefined") {
+                    return;
+                }
+
+                Swal.fire({
+                    icon: "question",
+                    title: "خروج از حساب کاربری",
+                    html: "آیا مطمئن هستید که می‌خواهید از حساب کاربری خود خارج شوید؟",
+                    showCancelButton: true,
+                    confirmButtonText: "بله، خارج شو",
+                    cancelButtonText: "انصراف",
+                    confirmButtonColor: "#dc3545",
+                    cancelButtonColor: "#6c757d",
+                    reverseButtons: true,
+                    allowOutsideClick: false,
+                    allowEscapeKey: true,
+                    focusCancel: true
+                }).then((result) => {
+
+                    if (result.isConfirmed) {
+                        submitLogout();
+                    }
+                    else {
+                        window.location.href = "/";
+                    }
+
+                });
+
+            });
+
+    </script>
 
 </body>
 </html>

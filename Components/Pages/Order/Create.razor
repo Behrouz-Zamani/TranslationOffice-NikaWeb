@@ -1,36 +1,57 @@
 ﻿@page "/order/create"
 
+@using System.IO
+@using System.Text.Json
 @using TranslationOffice.Data
 @using TranslationOffice.Models
 @using TranslationOffice.Services
 @using Microsoft.EntityFrameworkCore
 @using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.JSInterop
 
 @inject ApplicationDbContext Db
 @inject PricingService Pricing
 @inject OrderDocumentStorageService DocumentStorage
 @inject NavigationManager Navigation
+@inject IJSRuntime JS
 
 @rendermode InteractiveServer
 
 <h3 class="mb-4">ثبت سفارش ترجمه رسمی</h3>
 
-@if (documents == null)
+@if (documents == null || !isCartLoaded)
 {
-    <p>در حال بارگذاری...</p>
+    <p class="text-center my-5">در حال بارگذاری اطلاعات...</p>
 }
 else
 {
+    @if (activeOrderId.HasValue)
+    {
+        <div class="alert alert-info">
+            <strong>سفارش مهمان فعال:</strong>
+            اطلاعات جدید به سفارش شماره
+            <strong>@activeOrderNumber</strong>
+            اضافه خواهد شد.
+            <br />
+            تا زمانی که سفارش را به حساب کاربری متصل نکرده‌اید،
+            اطلاعات آن در این مرورگر نگهداری می‌شود.
+        </div>
+    }
+
     <div class="row">
+
         <div class="col-md-6">
             <div class="card mb-4">
                 <div class="card-header">انتخاب مدرک</div>
+
                 <div class="card-body">
 
                     <div class="mb-3">
                         <label class="form-label">نوع مدرک</label>
+
                         <select class="form-select" @onchange="OnDocumentChanged">
                             <option value="">انتخاب کنید...</option>
+
                             @foreach (var doc in documents)
                             {
                                 <option value="@doc.Id">@doc.Name</option>
@@ -48,6 +69,7 @@ else
                                         ? "تعداد سطر"
                                         : "تعداد صفحه")
                                 </label>
+
                                 <input type="number"
                                        class="form-control"
                                        value="@units"
@@ -58,6 +80,7 @@ else
 
                         <div class="mb-3">
                             <label class="form-label">تعداد نسخه</label>
+
                             <input type="number"
                                    class="form-control"
                                    value="@quantity"
@@ -71,6 +94,7 @@ else
                                    id="judiciary"
                                    checked="@needJudiciary"
                                    @onchange="OnJudiciaryChanged" />
+
                             <label class="form-check-label" for="judiciary">
                                 نیاز به تأیید دادگستری
                             </label>
@@ -82,6 +106,7 @@ else
                                    id="foreign"
                                    checked="@needForeignAffairs"
                                    @onchange="OnForeignChanged" />
+
                             <label class="form-check-label" for="foreign">
                                 نیاز به تأیید وزارت خارجه
                             </label>
@@ -113,6 +138,7 @@ else
                         {
                             <div class="border rounded p-3 mb-3">
                                 <strong>فایل‌های انتخاب‌شده:</strong>
+
                                 <ul class="list-group list-group-flush mt-2">
                                     @foreach (var file in selectedFiles)
                                     {
@@ -123,6 +149,7 @@ else
                                                     (@FormatFileSize(file.Size))
                                                 </small>
                                             </span>
+
                                             <button type="button"
                                                     class="btn btn-sm btn-outline-danger"
                                                     @onclick="() => RemoveSelectedFile(file)">
@@ -136,6 +163,7 @@ else
 
                         <div class="alert alert-info d-flex justify-content-between align-items-center">
                             <strong>قیمت نهایی:</strong>
+
                             <span class="fs-4 fw-bold">
                                 @currentPrice.ToString("N0") تومان
                             </span>
@@ -154,7 +182,11 @@ else
 
         <div class="col-md-6">
             <div class="card mb-4">
-                <div class="card-header">سبد سفارش</div>
+
+                <div class="card-header">
+                    سبد سفارش
+                </div>
+
                 <div class="card-body">
 
                     @if (cart.Any())
@@ -162,20 +194,37 @@ else
                         @foreach (var item in cart)
                         {
                             <div class="border rounded p-3 mb-3">
-                                <div class="d-flex justify-content-between">
+
+                                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+
                                     <strong>@item.DocumentName</strong>
-                                    <button type="button"
-                                            class="btn btn-sm btn-outline-danger"
-                                            @onclick="() => RemoveFromCart(item)"
-                                            disabled="@isSubmitting">
-                                        حذف
-                                    </button>
+
+                                    @if (item.IsSubmitted)
+                                    {
+                                        <span class="badge bg-success">
+                                            ثبت‌شده در سفارش
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        <button type="button"
+                                                class="btn btn-sm btn-outline-danger"
+                                                @onclick="() => RemoveFromCart(item)"
+                                                disabled="@isSubmitting">
+                                            حذف
+                                        </button>
+                                    }
+
                                 </div>
 
                                 <div class="small text-muted mt-2">
                                     تعداد نسخه: @item.Quantity
                                     <br />
                                     تعداد سطر/صفحه: @item.Units
+                                    <br />
+                                    دادگستری: @(item.NeedJudiciary ? "بله" : "خیر")
+                                    <br />
+                                    وزارت خارجه: @(item.NeedForeignAffairs ? "بله" : "خیر")
                                 </div>
 
                                 <div class="mt-2">
@@ -185,13 +234,15 @@ else
 
                                 <div class="mt-2">
                                     <strong>فایل‌های پیوست:</strong>
+
                                     @if (item.Files.Any())
                                     {
                                         <ul class="small mb-0 mt-1">
                                             @foreach (var file in item.Files)
                                             {
                                                 <li>
-                                                    @file.Name (@FormatFileSize(file.Size))
+                                                    @file.Name
+                                                    (@FormatFileSize(file.Size))
                                                 </li>
                                             }
                                         </ul>
@@ -199,28 +250,43 @@ else
                                     else
                                     {
                                         <div class="small text-muted">
-                                            هنوز فایلی انتخاب نشده است.
+                                            فایلی پیوست نشده است.
                                         </div>
                                     }
                                 </div>
+
                             </div>
                         }
 
                         <div class="alert alert-success d-flex justify-content-between">
-                            <strong>جمع کل:</strong>
+                            <strong>جمع کل سفارش:</strong>
+
                             <span class="fw-bold">
                                 @cart.Sum(x => x.TotalPrice).ToString("N0") تومان
                             </span>
                         </div>
 
-                        <button type="button"
-                                class="btn btn-success w-100"
-                                @onclick="SubmitOrder"
-                                disabled="@isSubmitting">
-                            @(isSubmitting
-                                ? "در حال ثبت سفارش و بارگذاری فایل‌ها..."
-                                : "ثبت نهایی سفارش")
-                        </button>
+                        @if (cart.Any(x => !x.IsSubmitted))
+                        {
+                            <button type="button"
+                                    class="btn btn-success w-100"
+                                    @onclick="SubmitOrder"
+                                    disabled="@isSubmitting">
+
+                                @(isSubmitting
+                                    ? "در حال ثبت اطلاعات..."
+                                    : activeOrderId.HasValue
+                                        ? "افزودن اطلاعات جدید به همین سفارش"
+                                        : "ثبت نهایی سفارش")
+                            </button>
+                        }
+                        else
+                        {
+                            <div class="alert alert-success">
+                                تمام اقلام این سبد قبلاً در سفارش ثبت شده‌اند.
+                                می‌توانید مدارک جدید اضافه کنید.
+                            </div>
+                        }
                     }
                     else
                     {
@@ -236,9 +302,11 @@ else
                             <div class="mt-1">@errorMessage</div>
                         </div>
                     }
+
                 </div>
             </div>
         </div>
+
     </div>
 }
 
@@ -253,6 +321,11 @@ else
             ".pdf", ".jpg", ".jpeg", ".png"
         };
 
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true
+    };
+
     private List<DocumentType>? documents;
     private DocumentType? selectedDoc;
 
@@ -263,18 +336,99 @@ else
     private bool needForeignAffairs;
 
     private decimal currentPrice;
+
     private bool isSubmitting;
+    private bool isCartLoaded;
+
     private string? errorMessage;
+
+    private string? activeOrderNumber;
+    private int? activeOrderId;
+    private string? activeGuestToken;
 
     private List<UploadedFileData> selectedFiles = new();
     private List<CartItem> cart = new();
 
+    private IJSObjectReference? cartStorage;
+
     protected override async Task OnInitializedAsync()
     {
         documents = await Db.DocumentTypes
+            .AsNoTracking()
             .Where(x => x.IsActive)
             .OrderBy(x => x.Name)
             .ToListAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+            return;
+
+        try
+        {
+            cartStorage = await JS.InvokeAsync<IJSObjectReference>(
+                "import",
+                "./js/orderCartStorage.js");
+
+            var savedJson = await cartStorage.InvokeAsync<string?>("loadCart");
+
+            if (!string.IsNullOrWhiteSpace(savedJson))
+            {
+                var state = JsonSerializer.Deserialize<GuestCartState>(
+                    savedJson,
+                    JsonOptions);
+
+                if (state != null)
+                {
+                    cart = state.Items ?? new List<CartItem>();
+                    activeOrderId = state.OrderId;
+                    activeGuestToken = state.GuestToken;
+
+                    if (activeOrderId.HasValue)
+                    {
+                        var existingOrder = await Db.Orders
+                            .AsNoTracking()
+                            .FirstOrDefaultAsync(x => x.Id == activeOrderId.Value);
+
+                        var tokenIsValid =
+                            existingOrder != null &&
+                            existingOrder.UserId == null &&
+                            GuestOrderToken.Verify(
+                                activeGuestToken,
+                                existingOrder.GuestAccessTokenHash);
+
+                        if (!tokenIsValid)
+                        {
+                            cart.Clear();
+                            activeOrderId = null;
+                            activeGuestToken = null;
+                            activeOrderNumber = null;
+
+                            await ClearPersistentCartAsync();
+
+                            errorMessage =
+                                "سفارش قبلی به حساب کاربری متصل شده یا اطلاعات دسترسی آن معتبر نیست. سبد مهمان پاک شد.";
+                        }
+                        else
+                        {
+                            activeOrderNumber = existingOrder!.OrderNumber;
+                        }
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage =
+                "بازیابی سبد سفارش از مرورگر ناموفق بود: " +
+                ex.GetBaseException().Message;
+        }
+        finally
+        {
+            isCartLoaded = true;
+            StateHasChanged();
+        }
     }
 
     private void OnDocumentChanged(ChangeEventArgs e)
@@ -354,7 +508,8 @@ else
 
             if (selectedFiles.Count + files.Count > MaxFilesPerDocument)
             {
-                errorMessage = "برای هر مدرک حداکثر ۱۰ فایل می‌توانید انتخاب کنید.";
+                errorMessage =
+                    "برای هر مدرک حداکثر ۱۰ فایل می‌توانید انتخاب کنید.";
                 return;
             }
 
@@ -366,22 +521,30 @@ else
 
                 if (!AllowedExtensions.Contains(extension))
                 {
-                    errorMessage = $"فرمت فایل «{file.Name}» مجاز نیست.";
+                    errorMessage =
+                        $"فرمت فایل «{file.Name}» مجاز نیست.";
                     return;
                 }
 
                 if (file.Size <= 0 || file.Size > MaxFileSize)
                 {
-                    errorMessage = $"حجم فایل «{file.Name}» باید بیشتر از صفر و حداکثر ۱۰ مگابایت باشد.";
+                    errorMessage =
+                        $"حجم فایل «{file.Name}» باید بیشتر از صفر و حداکثر ۱۰ مگابایت باشد.";
                     return;
                 }
 
-                if (selectedFiles.Any(x => x.Name == file.Name && x.Size == file.Size))
-                    continue;
-
-                if (currentTotalSize + file.Size > MaxTotalFileSizePerDocument)
+                if (selectedFiles.Any(x =>
+                    x.Name == Path.GetFileName(file.Name) &&
+                    x.Size == file.Size))
                 {
-                    errorMessage = "مجموع حجم فایل‌های هر مدرک نباید بیشتر از ۳۰ مگابایت باشد.";
+                    continue;
+                }
+
+                if (currentTotalSize + file.Size >
+                    MaxTotalFileSizePerDocument)
+                {
+                    errorMessage =
+                        "مجموع حجم فایل‌های هر مدرک نباید بیشتر از ۳۰ مگابایت باشد.";
                     return;
                 }
 
@@ -394,7 +557,8 @@ else
 
                 if (bytes.Length != file.Size)
                 {
-                    errorMessage = $"خواندن فایل «{file.Name}» کامل انجام نشد. دوباره انتخابش کن.";
+                    errorMessage =
+                        $"خواندن فایل «{file.Name}» کامل انجام نشد. دوباره انتخابش کن.";
                     return;
                 }
 
@@ -416,7 +580,8 @@ else
         }
         catch (Exception ex)
         {
-            errorMessage = $"خطا در خواندن فایل: {ex.GetBaseException().Message}";
+            errorMessage =
+                $"خطا در خواندن فایل: {ex.GetBaseException().Message}";
         }
     }
 
@@ -425,7 +590,7 @@ else
         selectedFiles.Remove(file);
     }
 
-    private void AddToCart()
+    private async Task AddToCart()
     {
         errorMessage = null;
 
@@ -437,7 +602,15 @@ else
 
         if (quantity < 1 || units < 1)
         {
-            errorMessage = "تعداد نسخه و تعداد واحد باید حداقل یک باشد.";
+            errorMessage =
+                "تعداد نسخه و تعداد واحد باید حداقل یک باشد.";
+            return;
+        }
+
+        if (selectedFiles.Count > MaxFilesPerDocument ||
+            selectedFiles.Sum(x => x.Size) > MaxTotalFileSizePerDocument)
+        {
+            errorMessage = "تعداد یا حجم فایل‌های انتخاب‌شده مجاز نیست.";
             return;
         }
 
@@ -450,7 +623,8 @@ else
             NeedJudiciary = needJudiciary,
             NeedForeignAffairs = needForeignAffairs,
             TotalPrice = currentPrice,
-            Files = selectedFiles.ToList()
+            Files = selectedFiles.ToList(),
+            IsSubmitted = false
         });
 
         selectedDoc = null;
@@ -461,22 +635,33 @@ else
         needJudiciary = false;
         needForeignAffairs = false;
         currentPrice = 0;
+
+        await SavePersistentCartAsync();
     }
 
-    private void RemoveFromCart(CartItem item)
+    private async Task RemoveFromCart(CartItem item)
     {
+        if (item.IsSubmitted)
+            return;
+
         cart.Remove(item);
+        await SavePersistentCartAsync();
     }
 
     private async Task SubmitOrder()
     {
-        if (!cart.Any() || isSubmitting)
+        var pendingItems = cart
+            .Where(x => !x.IsSubmitted)
+            .ToList();
+
+        if (!pendingItems.Any() || isSubmitting)
             return;
 
         isSubmitting = true;
         errorMessage = null;
 
-        var guestToken = GuestOrderToken.Generate();
+        string guestToken = activeGuestToken ?? GuestOrderToken.Generate();
+
         var savedDocuments = new List<OrderDocument>();
 
         try
@@ -484,36 +669,96 @@ else
             await using var transaction =
                 await Db.Database.BeginTransactionAsync();
 
-            decimal serverTotal = 0;
+            Order order;
+            var isNewOrder = !activeOrderId.HasValue;
 
-            var order = new Order
+            if (isNewOrder)
             {
-                OrderNumber = "TR-" +
-                    Guid.NewGuid().ToString("N")[..12].ToUpperInvariant(),
+                order = new Order
+                {
+                    OrderNumber = "TR-" +
+                        Guid.NewGuid().ToString("N")[..12].ToUpperInvariant(),
 
-                UserId = null,
-                GuestAccessTokenHash = GuestOrderToken.Hash(guestToken),
-                Status = "PendingPayment",
-                CreatedAt = DateTime.Now
-            };
+                    UserId = null,
+                    GuestAccessTokenHash = GuestOrderToken.Hash(guestToken),
+                    Status = "PendingPayment",
+                    ProgressStatus = "Pending",
+                    CreatedAt = DateTime.Now
+                };
 
-            foreach (var cartItem in cart)
+                Db.Orders.Add(order);
+            }
+            else
+            {
+                order = await Db.Orders
+                    .Include(x => x.Items)
+                    .FirstOrDefaultAsync(x => x.Id == activeOrderId!.Value)
+                    ?? throw new InvalidOperationException(
+                        "سفارش مهمان قبلی پیدا نشد.");
+
+                if (order.UserId != null)
+                {
+                    throw new InvalidOperationException(
+                        "این سفارش قبلاً به حساب کاربری متصل شده است. برای ثبت سفارش جدید، سبد جدید ایجاد کنید.");
+                }
+
+                if (!GuestOrderToken.Verify(
+                    guestToken,
+                    order.GuestAccessTokenHash))
+                {
+                    throw new InvalidOperationException(
+                        "توکن دسترسی سفارش معتبر نیست. امکان افزودن اطلاعات وجود ندارد.");
+                }
+
+                if (order.Status != "PendingPayment")
+                {
+                    throw new InvalidOperationException(
+                        "به این سفارش به دلیل وضعیت فعلی آن نمی‌توان اطلاعات جدید اضافه کرد.");
+                }
+            }
+
+            var newOrderItems = new List<(CartItem Cart, OrderItem Item)>();
+
+            foreach (var cartItem in pendingItems)
             {
                 var documentType = await Db.DocumentTypes
                     .FirstOrDefaultAsync(x =>
-                        x.Id == cartItem.DocumentTypeId && x.IsActive);
+                        x.Id == cartItem.DocumentTypeId &&
+                        x.IsActive);
 
                 if (documentType == null)
+                {
                     throw new InvalidOperationException(
-                        "یکی از مدارک انتخاب‌شده دیگر فعال نیست.");
+                        $"مدرک «{cartItem.DocumentName}» دیگر فعال نیست.");
+                }
 
                 if (cartItem.Quantity < 1 || cartItem.Units < 1)
+                {
                     throw new InvalidOperationException(
                         "تعداد نسخه یا تعداد واحد معتبر نیست.");
+                }
 
-                if (cartItem.Files.Count > MaxFilesPerDocument)
+                if (cartItem.Files.Count > MaxFilesPerDocument ||
+                    cartItem.Files.Sum(x => x.Size) >
+                    MaxTotalFileSizePerDocument)
+                {
                     throw new InvalidOperationException(
-                        "برای هر مدرک حداکثر ۱۰ فایل مجاز است.");
+                        "تعداد یا حجم فایل‌های یکی از مدارک مجاز نیست.");
+                }
+
+                foreach (var file in cartItem.Files)
+                {
+                    var extension = Path.GetExtension(file.Name);
+
+                    if (!AllowedExtensions.Contains(extension) ||
+                        file.Content.Length == 0 ||
+                        file.Content.Length > MaxFileSize ||
+                        file.Content.LongLength != file.Size)
+                    {
+                        throw new InvalidOperationException(
+                            $"فایل «{file.Name}» معتبر نیست.");
+                    }
+                }
 
                 var itemPrice = Pricing.Calculate(
                     documentType,
@@ -522,37 +767,37 @@ else
                     cartItem.NeedJudiciary,
                     cartItem.NeedForeignAffairs);
 
-                serverTotal += itemPrice;
-
-                order.Items.Add(new OrderItem
+                var orderItem = new OrderItem
                 {
                     DocumentTypeId = documentType.Id,
-                    Units = cartItem.Units,
+                    Units = documentType.PricingType == PricingType.Fixed
+                        ? 1
+                        : cartItem.Units,
                     Quantity = cartItem.Quantity,
                     NeedJudiciary = cartItem.NeedJudiciary,
                     NeedForeignAffairs = cartItem.NeedForeignAffairs,
                     TotalPrice = itemPrice,
                     Status = "Pending"
-                });
+                };
+
+                order.Items.Add(orderItem);
+
+                newOrderItems.Add((cartItem, orderItem));
+
+                order.TotalPrice += itemPrice;
             }
 
-            order.TotalPrice = serverTotal;
-
-            Db.Orders.Add(order);
             await Db.SaveChangesAsync();
 
-            for (var i = 0; i < cart.Count; i++)
+            foreach (var entry in newOrderItems)
             {
-                var cartItem = cart[i];
-                var orderItem = order.Items.ElementAt(i);
-
-                foreach (var file in cartItem.Files)
+                foreach (var file in entry.Cart.Files)
                 {
                     var savedDocument = await DocumentStorage.SaveAsync(
                         file.Name,
                         file.Content,
                         order.Id,
-                        orderItem.Id);
+                        entry.Item.Id);
 
                     savedDocuments.Add(savedDocument);
                     Db.OrderDocuments.Add(savedDocument);
@@ -560,16 +805,33 @@ else
             }
 
             await Db.SaveChangesAsync();
+
             await transaction.CommitAsync();
 
-            cart.Clear();
-            selectedFiles.Clear();
+            activeOrderId = order.Id;
+            activeOrderNumber = order.OrderNumber;
+            activeGuestToken = guestToken;
+
+            foreach (var item in pendingItems)
+            {
+                item.IsSubmitted = true;
+
+                // پس از ذخیره موفق در سرور، دیگر نیازی به نگهداری بایت فایل نیست.
+                foreach (var file in item.Files)
+                {
+                    file.Content = Array.Empty<byte>();
+                }
+            }
+
+            await SavePersistentCartAsync();
 
             Navigation.NavigateTo(
                 $"/order/success/{order.Id}?token={Uri.EscapeDataString(guestToken)}");
         }
         catch (Exception ex)
         {
+            Db.ChangeTracker.Clear();
+
             foreach (var file in savedDocuments)
             {
                 try
@@ -578,11 +840,13 @@ else
                 }
                 catch
                 {
-                    // خطای حذف فایل نباید خطای اصلی را پنهان کند.
+                    // خطای پاک‌سازی نباید خطای اصلی را پنهان کند.
                 }
             }
 
-            errorMessage = $"ثبت سفارش با خطا مواجه شد: {ex.GetBaseException().Message}";
+            errorMessage =
+                $"ثبت سفارش با خطا مواجه شد: {ex.GetBaseException().Message}";
+
             Console.Error.WriteLine(ex);
         }
         finally
@@ -591,11 +855,43 @@ else
         }
     }
 
+    private async Task SavePersistentCartAsync()
+    {
+        if (cartStorage == null)
+            return;
+
+        var state = new GuestCartState
+        {
+            OrderId = activeOrderId,
+            GuestToken = activeGuestToken,
+            Items = cart
+        };
+
+        var json = JsonSerializer.Serialize(state, JsonOptions);
+
+        await cartStorage.InvokeVoidAsync("saveCart", json);
+    }
+
+    private async Task ClearPersistentCartAsync()
+    {
+        if (cartStorage == null)
+            return;
+
+        await cartStorage.InvokeVoidAsync("clearCart");
+    }
+
     private static string FormatFileSize(long size)
     {
         return size < 1024 * 1024
             ? $"{size / 1024.0:N0} KB"
             : $"{size / (1024.0 * 1024):N2} MB";
+    }
+
+    public class GuestCartState
+    {
+        public int? OrderId { get; set; }
+        public string? GuestToken { get; set; }
+        public List<CartItem> Items { get; set; } = new();
     }
 
     public class UploadedFileData
@@ -617,5 +913,6 @@ else
         public bool NeedForeignAffairs { get; set; }
         public decimal TotalPrice { get; set; }
         public List<UploadedFileData> Files { get; set; } = new();
+        public bool IsSubmitted { get; set; }
     }
 }

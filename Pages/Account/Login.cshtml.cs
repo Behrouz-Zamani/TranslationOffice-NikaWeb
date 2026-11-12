@@ -1,8 +1,8 @@
 
-using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using System.ComponentModel.DataAnnotations;
 using TranslationOffice.Models;
 
 namespace TranslationOffice.Pages.Account;
@@ -10,10 +10,14 @@ namespace TranslationOffice.Pages.Account;
 public class LoginModel : PageModel
 {
     private readonly SignInManager<ApplicationUser> _signInManager;
+    private readonly UserManager<ApplicationUser> _userManager;
 
-    public LoginModel(SignInManager<ApplicationUser> signInManager)
+    public LoginModel(
+        SignInManager<ApplicationUser> signInManager,
+        UserManager<ApplicationUser> userManager)
     {
         _signInManager = signInManager;
+        _userManager = userManager;
     }
 
     [BindProperty]
@@ -51,12 +55,23 @@ public class LoginModel : PageModel
 
         if (result.Succeeded)
         {
-            if (!string.IsNullOrWhiteSpace(ReturnUrl) &&
-                Url.IsLocalUrl(ReturnUrl))
+            var user = await _userManager.FindByNameAsync(Phone);
+
+            var role = user?.Role?.Trim();
+
+            if (string.Equals(role, "Admin",
+                StringComparison.OrdinalIgnoreCase))
             {
-                return LocalRedirect(ReturnUrl);
+                return Redirect("/admin/orders");
             }
 
+            if (string.Equals(role, "Translator",
+                StringComparison.OrdinalIgnoreCase))
+            {
+                return Redirect("/translator/orders");
+            }
+
+            // مشتری یا کاربر عادی
             return Redirect("/");
         }
 

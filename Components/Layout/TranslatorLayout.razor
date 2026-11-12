@@ -1,0 +1,151 @@
+﻿@inherits LayoutComponentBase
+
+@using Microsoft.AspNetCore.Components.Authorization
+
+<div class="translator-layout" dir="rtl">
+
+    <!-- Sidebar -->
+    <aside class="translator-sidebar @(sidebarOpen ? "translator-sidebar-open" : "")">
+
+        <div class="translator-brand">
+            <div class="translator-brand-icon">
+                <i class="bi bi-translate"></i>
+            </div>
+
+            <div>
+                <strong>دارالترجمه رسمی</strong>
+                <span>پنل مترجم</span>
+            </div>
+        </div>
+
+        <div class="translator-sidebar-caption">
+            پنل مترجم
+        </div>
+
+        <nav class="translator-menu">
+
+            <NavLink href="/translator/orders"
+                     Match="NavLinkMatch.All"
+                     class="translator-menu-link">
+
+                <i class="bi bi-grid-1x2"></i>
+                <span>داشبورد</span>
+
+            </NavLink>
+
+            <NavLink href="/translator/orders"
+                     class="translator-menu-link">
+
+                <i class="bi bi-file-earmark-text"></i>
+                <span>سفارش‌های من</span>
+
+            </NavLink>
+
+        </nav>
+
+        <div class="translator-sidebar-bottom">
+
+            <a href="/"
+               class="translator-menu-link">
+
+                <i class="bi bi-house"></i>
+                <span>بازگشت به سایت</span>
+
+            </a>
+
+        </div>
+
+    </aside>
+
+    <!-- Main -->
+    <div class="translator-main">
+
+        <!-- Header -->
+        <header class="translator-header">
+
+            <div class="translator-header-right">
+
+                <button type="button"
+                        class="translator-toggle"
+                        @onclick="ToggleSidebar">
+
+                    <i class="bi bi-list"></i>
+
+                </button>
+
+                <div class="translator-page-title">
+                    <strong>پنل مترجم</strong>
+                    <span>مدیریت سفارش‌های ترجمه</span>
+                </div>
+
+            </div>
+
+            <div class="translator-header-left">
+
+                <AuthorizeView>
+                    <Authorized Context="auth">
+
+                        <div class="translator-user">
+
+                            <div class="translator-user-avatar">
+                                <i class="bi bi-person-fill"></i>
+                            </div>
+
+                            <div class="translator-user-info">
+                                <strong>@auth.User.Identity?.Name</strong>
+                                <span>مترجم</span>
+                            </div>
+
+                        </div>
+
+                    </Authorized>
+                </AuthorizeView>
+
+                <a href="/Account/Logout"
+                   data-enhance-nav="false"
+                   class="translator-logout">
+
+                    <i class="bi bi-box-arrow-left"></i>
+                    <span>خروج</span>
+
+                </a>
+
+            </div>
+
+        </header>
+
+        <!-- Page Content -->
+        <main class="translator-content">
+            @Body
+        </main>
+
+        <!-- Footer -->
+        <footer class="translator-footer">
+            <span>پنل مترجم دارالترجمه</span>
+            <span>تمام حقوق محفوظ است © @DateTime.Now.Year</span>
+        </footer>
+
+    </div>
+
+    @if (sidebarOpen)
+    {
+        <div class="translator-overlay"
+             @onclick="CloseSidebar">
+        </div>
+    }
+
+</div>
+
+@code {
+    private bool sidebarOpen;
+
+    private void ToggleSidebar()
+    {
+        sidebarOpen = !sidebarOpen;
+    }
+
+    private void CloseSidebar()
+    {
+        sidebarOpen = false;
+    }
+}
