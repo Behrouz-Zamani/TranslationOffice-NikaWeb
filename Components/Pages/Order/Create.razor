@@ -381,7 +381,7 @@ else
         }
         else
         {
-            guestCartKey = CartService.GuestCartKey;
+            var guestCartKey = CartService.GuestCartKey;
             if (string.IsNullOrWhiteSpace(guestCartKey))
                 throw new InvalidOperationException("شناسه سبد مهمان در Layout مقداردهی نشده است.");
 
