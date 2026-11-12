@@ -204,7 +204,7 @@
     private int cartItemCount;
     private string cartStorageKey = "guest";
     private bool cartAnimation;
-    private PersistingComponentStateSubscription guestCartKeySubscription;
+    private PersistingComponentStateSubscription? guestCartKeySubscription;
 
     protected override async Task OnInitializedAsync()
     {
@@ -284,7 +284,7 @@
     public void Dispose()
     {
         CartService.CartChanged -= HandleCartChanged;
-        guestCartKeySubscription.Dispose();
+        guestCartKeySubscription?.Dispose();
     }
 
     private void ToggleMenu() => isMenuOpen = !isMenuOpen;
