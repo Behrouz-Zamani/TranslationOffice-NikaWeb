@@ -29,8 +29,11 @@ public sealed class CartService
 
     public async Task<int> GetCountAsync(string cartKey)
     {
-        var json = await LoadAsync(cartKey);
-        return string.IsNullOrWhiteSpace(json) ? 0 : ReadItemCount(json);
+        await using var db = await _dbFactory.CreateDbContextAsync();
+        return await db.ShoppingCarts.AsNoTracking()
+            .Where(x => x.CartKey == cartKey)
+            .Select(x => (int?)x.ItemCount)
+            .FirstOrDefaultAsync() ?? 0;
     }
 
     public async Task SaveAsync(string cartKey, string cartJson, int? orderId)
@@ -45,6 +48,7 @@ public sealed class CartService
 
         cart.CartJson = cartJson;
         cart.OrderId = orderId;
+        cart.ItemCount = ReadItemCount(cartJson);
         cart.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync();
 
