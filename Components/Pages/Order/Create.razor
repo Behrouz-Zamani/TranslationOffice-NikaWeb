@@ -340,13 +340,42 @@ else
             .OrderBy(x => x.Name)
             .ToListAsync();
 
+    }
+
+    protected override void OnParametersSet()
+    {
+        if (documents == null)
+            return;
+
         if (DocumentId.HasValue)
         {
-            selectedDoc = documents.FirstOrDefault(x => x.Id == DocumentId.Value);
-            if (selectedDoc == null)
+            var nextDocument = documents.FirstOrDefault(x => x.Id == DocumentId.Value);
+
+            if (nextDocument == null)
+            {
+                selectedDoc = null;
                 errorMessage = "مدرک موردنظر پیدا نشد یا در حال حاضر فعال نیست.";
-            else
-                CalculatePrice();
+                currentPrice = 0;
+                return;
+            }
+
+            if (selectedDoc?.Id != nextDocument.Id)
+            {
+                selectedFiles.Clear();
+                units = 1;
+                quantity = 1;
+                needJudiciary = false;
+                needForeignAffairs = false;
+                errorMessage = null;
+            }
+
+            selectedDoc = nextDocument;
+            CalculatePrice();
+        }
+        else
+        {
+            selectedDoc = null;
+            currentPrice = 0;
         }
     }
 
