@@ -55,6 +55,8 @@ builder.Services.ConfigureApplicationCookie(options =>
 // Application Services
 // ---------------------------------------
 builder.Services.AddScoped<PricingService>();
+builder.Services.AddScoped<CartService>();
+builder.Services.AddHttpContextAccessor();
 
 // Payment Services
 builder.Services.AddScoped<PaymentService>();
@@ -95,6 +97,28 @@ if (!app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 
 app.UseStaticFiles();
+
+app.Use(async (context, next) =>
+{
+    if (!context.Request.Cookies.TryGetValue("nika-cart-id", out var guestCartId) ||
+        !Guid.TryParseExact(guestCartId, "N", out _))
+    {
+        guestCartId = Guid.NewGuid().ToString("N");
+        context.Response.Cookies.Append(
+            "nika-cart-id",
+            guestCartId,
+            new CookieOptions
+            {
+                HttpOnly = true,
+                Secure = context.Request.IsHttps,
+                SameSite = SameSiteMode.Lax,
+                IsEssential = true,
+                MaxAge = TimeSpan.FromDays(365)
+            });
+    }
+
+    await next();
+});
 
 app.UseAuthentication();
 
