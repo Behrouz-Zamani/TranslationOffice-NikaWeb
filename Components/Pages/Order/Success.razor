@@ -1,4 +1,4 @@
-﻿@page "/order/success/{OrderId:int}"
+@page "/order/success/{OrderId:int}"
 
 @using TranslationOffice.Data
 @using TranslationOffice.Models
@@ -266,7 +266,8 @@ else
                 "import",
                 "./js/orderCartStorage.js");
 
-            await cartStorage.InvokeVoidAsync("clearCart");
+            // Clear only the guest cart after a successful claim.
+            await cartStorage.InvokeVoidAsync("clearCart", "guest");
 
             cartCleared = true;
         }
