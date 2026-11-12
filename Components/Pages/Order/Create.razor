@@ -7,6 +7,7 @@
 @using TranslationOffice.Models
 @using TranslationOffice.Services
 @using Microsoft.EntityFrameworkCore
+@using Microsoft.AspNetCore.Components
 @using Microsoft.AspNetCore.Components.Forms
 @using Microsoft.JSInterop
 
@@ -124,7 +125,7 @@ else
                     </button>
                 </div>
             }
-            else
+            else if (!DocumentId.HasValue)
             {
                 <div class="order-products-heading mb-3">
                     <div><h5 class="mb-1">چه مدرکی برای ترجمه دارید؟</h5><p class="text-muted mb-0 small">برای مشاهده توضیحات و گزینه‌های هر مدرک، کارت آن را انتخاب کنید.</p></div>
@@ -149,6 +150,11 @@ else
                         </div>
                     }
                 </div>
+            }
+            else
+            {
+                <div class="alert alert-warning">مدرک موردنظر پیدا نشد یا در حال حاضر فعال نیست.</div>
+                <button type="button" class="btn btn-outline-secondary" @onclick="BackToProducts">بازگشت به فهرست مدارک</button>
             }
         </div>
 
