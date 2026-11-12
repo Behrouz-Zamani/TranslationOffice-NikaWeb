@@ -12,7 +12,7 @@
 
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject UserManager<ApplicationUser> UserManager
-@inject SignInManager<ApplicationUser> SignInManager
+@inject NavigationManager NavigationManager
 
 <PageTitle>پروفایل من</PageTitle>
 
@@ -222,7 +222,6 @@
                 return;
             }
 
-            await SignInManager.RefreshSignInAsync(currentUser);
             profileMessage = "اطلاعات پروفایل با موفقیت ذخیره شد.";
         }
         catch (Exception ex)
@@ -257,9 +256,8 @@
                 return;
             }
 
-            await SignInManager.RefreshSignInAsync(currentUser);
             passwordModel = new PasswordInput();
-            passwordMessage = "رمز عبور با موفقیت تغییر کرد.";
+            NavigationManager.NavigateTo("/Account/Login?passwordChanged=true", forceLoad: true);
         }
         catch (Exception ex)
         {
