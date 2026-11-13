@@ -39,7 +39,7 @@
                         <button type="button"
                                 class="jalali-day @(Value?.Date == current.Date ? "selected" : "") @(current.Date == DateTime.Today ? "today" : "")"
                                 @onclick="() => SelectDate(current)">
-                            @Persian.GetDayOfMonth(current)
+                            @ToPersianDigits(Persian.GetDayOfMonth(current).ToString("00"))
                         </button>
                     }
                 }
