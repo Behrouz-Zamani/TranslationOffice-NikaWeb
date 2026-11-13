@@ -364,7 +364,9 @@
             ".pdf",
             ".jpg",
             ".jpeg",
-            ".png"
+            ".png",
+            ".doc",
+            ".docx"
         };
 
     private List<OrderItem> items = new();
@@ -739,6 +741,10 @@
             ".jpg" => "image/jpeg",
             ".jpeg" => "image/jpeg",
             ".png" => "image/png",
+            ".doc" => "application/msword",
+            ".docx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            ".doc" => "application/msword",
+            ".docx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             _ => "application/octet-stream"
         };
     }
