@@ -98,6 +98,18 @@
                             </div>
                         </div>
 
+                        <div class="col-12"><hr /><h6>اطلاعات بانکی مترجم</h6></div>
+                        <div class="col-md-6 mb-3"><label class="form-label">نام بانک</label><InputText class="form-control" @bind-Value="model.BankName" /></div>
+                        <div class="col-md-6 mb-3"><label class="form-label">نام صاحب حساب</label><InputText class="form-control" @bind-Value="model.BankAccountHolder" /></div>
+                        <div class="col-md-6 mb-3"><label class="form-label">شماره حساب</label><InputText class="form-control" @bind-Value="model.BankAccountNumber" dir="ltr" /></div>
+                        <div class="col-md-6 mb-3"><label class="form-label">شماره کارت</label><InputText class="form-control" @bind-Value="model.BankCardNumber" dir="ltr" /></div>
+                        <div class="col-md-6 mb-3"><label class="form-label">شماره شبا</label><InputText class="form-control" @bind-Value="model.BankSheba" dir="ltr" /></div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">درصد سهم مترجم از حق‌الترجمه</label>
+                            <InputNumber class="form-control" @bind-Value="model.CommissionPercent" />
+                            <div class="form-text">بدون هزینه‌های دادگستری، وزارت خارجه و کپی</div>
+                            <ValidationMessage For="@(() => model.CommissionPercent)" class="text-danger" />
+                        </div>
                     </div>
 
                     <hr />
@@ -163,7 +175,13 @@
             {
                 FirstName = translator.FirstName,
                 LastName = translator.LastName,
-                PhoneNumber = translator.PhoneNumber ?? translator.UserName ?? ""
+                PhoneNumber = translator.PhoneNumber ?? translator.UserName ?? "",
+                BankName = translator.BankName ?? "",
+                BankAccountHolder = translator.BankAccountHolder ?? "",
+                BankAccountNumber = translator.BankAccountNumber ?? "",
+                BankCardNumber = translator.BankCardNumber ?? "",
+                BankSheba = translator.BankSheba ?? "",
+                CommissionPercent = translator.TranslatorCommissionPercent
             };
         }
         catch (Exception ex)
@@ -223,6 +241,12 @@
             // شماره موبایل و نام کاربری همیشه یکسان می‌مانند.
             translator.PhoneNumber = newPhone;
             translator.UserName = newPhone;
+            translator.BankName = Clean(model.BankName);
+            translator.BankAccountHolder = Clean(model.BankAccountHolder);
+            translator.BankAccountNumber = Clean(model.BankAccountNumber);
+            translator.BankCardNumber = Clean(model.BankCardNumber);
+            translator.BankSheba = Clean(model.BankSheba);
+            translator.TranslatorCommissionPercent = model.CommissionPercent;
 
             var result = await UserManager.UpdateAsync(translator);
 
@@ -267,6 +291,9 @@
                 x.Role == "Admin");
     }
 
+    private static string? Clean(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
     private class TranslatorInput
     {
         [Required(ErrorMessage = "نام را وارد کنید.")]
@@ -281,5 +308,14 @@
         [StringLength(20, MinimumLength = 5,
             ErrorMessage = "شماره موبایل معتبر نیست.")]
         public string PhoneNumber { get; set; } = "";
+
+        [Range(typeof(decimal), "0", "100", ErrorMessage = "درصد باید بین صفر تا ۱۰۰ باشد.")]
+        public decimal CommissionPercent { get; set; }
+
+        public string BankName { get; set; } = "";
+        public string BankAccountHolder { get; set; } = "";
+        public string BankAccountNumber { get; set; } = "";
+        public string BankCardNumber { get; set; } = "";
+        public string BankSheba { get; set; } = "";
     }
 }
