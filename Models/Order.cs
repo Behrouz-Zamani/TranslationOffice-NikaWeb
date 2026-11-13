@@ -10,6 +10,9 @@ public class Order
     // برای سفارش مهمان null است.
     public string? UserId { get; set; }
 
+    // شماره تماس مشتری برای نام‌گذاری فایل‌ها، به‌ویژه سفارش مهمان.
+    public string? CustomerMobile { get; set; }
+
     // هش توکن دسترسی سفارش مهمان؛ خود توکن ذخیره نمی‌شود.
     public string? GuestAccessTokenHash { get; set; }
 

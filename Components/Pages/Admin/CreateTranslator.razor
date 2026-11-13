@@ -80,6 +80,20 @@
                     </small>
                 </div>
 
+                <hr />
+                <h6>اطلاعات بانکی مترجم</h6>
+                <div class="mb-3"><label class="form-label">نام بانک</label><InputText class="form-control" @bind-Value="model.BankName" /></div>
+                <div class="mb-3"><label class="form-label">نام صاحب حساب</label><InputText class="form-control" @bind-Value="model.BankAccountHolder" /></div>
+                <div class="mb-3"><label class="form-label">شماره حساب</label><InputText class="form-control" @bind-Value="model.BankAccountNumber" dir="ltr" /></div>
+                <div class="mb-3"><label class="form-label">شماره کارت</label><InputText class="form-control" @bind-Value="model.BankCardNumber" dir="ltr" /></div>
+                <div class="mb-3"><label class="form-label">شماره شبا</label><InputText class="form-control" @bind-Value="model.BankSheba" dir="ltr" /></div>
+                <div class="mb-3">
+                    <label class="form-label">درصد سهم مترجم از حق‌الترجمه</label>
+                    <InputNumber class="form-control" @bind-Value="model.CommissionPercent" />
+                    <div class="form-text">فقط حق‌الترجمه محاسبه می‌شود؛ هزینه‌های دادگستری، وزارت خارجه و کپی خارج هستند.</div>
+                    <ValidationMessage For="() => model.CommissionPercent" class="text-danger" />
+                </div>
+
                 <div class="mb-3">
                     <label class="form-label">رمز عبور</label>
                     <InputText type="password"
@@ -182,7 +196,13 @@
                 FullName =
                     $"{model.FirstName.Trim()} {model.LastName.Trim()}",
 
-                Role = "Translator"
+                Role = "Translator",
+                BankName = Clean(model.BankName),
+                BankAccountHolder = Clean(model.BankAccountHolder),
+                BankAccountNumber = Clean(model.BankAccountNumber),
+                BankCardNumber = Clean(model.BankCardNumber),
+                BankSheba = Clean(model.BankSheba),
+                TranslatorCommissionPercent = model.CommissionPercent
             };
 
             var result = await UserManager.CreateAsync(
@@ -214,6 +234,9 @@
         }
     }
 
+    private static string? Clean(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
     public class TranslatorInput
     {
         [Required(ErrorMessage = "نام را وارد کنید.")]
@@ -228,6 +251,15 @@
         [Phone(ErrorMessage = "شماره موبایل معتبر نیست.")]
         [StringLength(20)]
         public string Phone { get; set; } = string.Empty;
+
+        [Range(typeof(decimal), "0", "100", ErrorMessage = "درصد باید بین صفر تا ۱۰۰ باشد.")]
+        public decimal CommissionPercent { get; set; }
+
+        public string? BankName { get; set; }
+        public string? BankAccountHolder { get; set; }
+        public string? BankAccountNumber { get; set; }
+        public string? BankCardNumber { get; set; }
+        public string? BankSheba { get; set; }
 
         [Required(ErrorMessage = "رمز عبور را وارد کنید.")]
         [MinLength(6, ErrorMessage = "رمز عبور حداقل باید ۶ کاراکتر باشد.")]

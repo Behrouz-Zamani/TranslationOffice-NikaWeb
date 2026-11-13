@@ -1,4 +1,6 @@
-﻿@page "/order/create"
+@page "/order/create"
+@page "/order/cart"
+@page "/order/product/{DocumentId:int}"
 
 @using System.IO
 @using System.Text.Json
@@ -6,25 +8,47 @@
 @using TranslationOffice.Models
 @using TranslationOffice.Services
 @using Microsoft.EntityFrameworkCore
+@using Microsoft.AspNetCore.Components
 @using Microsoft.AspNetCore.Components.Forms
-@using Microsoft.JSInterop
+@using Microsoft.AspNetCore.Components.Authorization
+@using System.Security.Claims
 
 @inject ApplicationDbContext Db
 @inject PricingService Pricing
 @inject OrderDocumentStorageService DocumentStorage
 @inject NavigationManager Navigation
-@inject IJSRuntime JS
+@inject AuthenticationStateProvider AuthStateProvider
+@inject CartService CartService
 
-@rendermode InteractiveServer
 
-<h3 class="mb-4">ثبت سفارش ترجمه رسمی</h3>
+<div class="order-page-heading mb-4">
+    <div>
+        <span class="order-eyebrow">NIKA TRANSLATION</span>
+        <h3 class="mb-1">@(isCartPage ? "سبد سفارش شما" : "ثبت سفارش ترجمه رسمی")</h3>
+        <p class="text-muted mb-0">@(isCartPage ? "مدارک انتخاب‌شده و جزئیات سفارش خود را بررسی کنید." : "مدرک موردنظر را انتخاب کنید و جزئیات سفارش را ثبت کنید.")</p>
+    </div>
+    @if (!isCartPage)
+    {
+        <div class="order-step-indicator">
+            <span class="@(DocumentId.HasValue ? "" : "active")">۱. انتخاب مدرک</span>
+            <span class="@(DocumentId.HasValue ? "active" : "")">۲. ثبت جزئیات</span>
+            <span>۳. ثبت سفارش</span>
+        </div>
+    }
+</div>
 
-@if (documents == null || !isCartLoaded)
+@if (documents == null)
 {
-    <p class="text-center my-5">در حال بارگذاری اطلاعات...</p>
+    <p class="text-center my-5">در حال بارگذاری فهرست مدارک...</p>
 }
 else
 {
+    @if (!isCartLoaded)
+    {
+        <div class="alert alert-info py-2 mb-3">
+            در حال بازیابی سبد سفارش؛ لطفاً چند لحظه صبر کنید.
+        </div>
+    }
     @if (activeOrderId.HasValue)
     {
         <div class="alert alert-info">
@@ -40,151 +64,138 @@ else
 
     <div class="row">
 
-        <div class="col-md-6">
-            <div class="card mb-4">
-                <div class="card-header">انتخاب مدرک</div>
-
-                <div class="card-body">
-
-                    <div class="mb-3">
-                        <label class="form-label">نوع مدرک</label>
-
-                        <select class="form-select" @onchange="OnDocumentChanged">
-                            <option value="">انتخاب کنید...</option>
-
-                            @foreach (var doc in documents)
-                            {
-                                <option value="@doc.Id">@doc.Name</option>
-                            }
-                        </select>
+@if (!isCartPage)
+{
+<div class="col-lg-7">
+            @if (DocumentId.HasValue && selectedDoc != null)
+            {
+                <div class="order-detail-card">
+                    <button type="button" class="btn btn-link order-back-link px-0 mb-3" @onclick="BackToProducts">
+                        <i class="bi bi-arrow-right ms-1"></i> بازگشت به فهرست مدارک
+                    </button>
+                    <div class="order-detail-hero">
+                        @if (!string.IsNullOrWhiteSpace(selectedDoc.SampleImagePath))
+                        {
+                            <img class="order-document-sample-image" src="@selectedDoc.SampleImagePath" alt="نمونه @selectedDoc.Name" />
+                        }
+                        else
+                        {
+                            <div class="order-product-icon large"><i class="@GetDocumentIcon(selectedDoc)"></i></div>
+                        }
+                        <div>
+                            <span class="order-eyebrow">جزئیات مدرک انتخابی</span>
+                            <h4 class="mb-2">@selectedDoc.Name</h4>
+                            <span class="order-type-pill">@GetPricingTypeText(selectedDoc)</span>
+                        </div>
                     </div>
-
-                    @if (selectedDoc != null)
-                    {
+                    <div class="order-description-box mt-4">
+                        <h6><i class="bi bi-info-circle ms-2"></i>درباره این مدرک</h6>
+                        <p class="mb-0">@GetDocumentDescription(selectedDoc)</p>
+                    </div>
+                    <div class="order-options-section mt-4">
+                        <h5 class="mb-3">تنظیمات و گزینه‌های سفارش</h5>
                         @if (selectedDoc.PricingType != PricingType.Fixed)
                         {
                             <div class="mb-3">
-                                <label class="form-label">
-                                    @(selectedDoc.PricingType == PricingType.PerLine
-                                        ? "تعداد سطر"
-                                        : "تعداد صفحه")
-                                </label>
-
-                                <input type="number"
-                                       class="form-control"
-                                       value="@units"
-                                       @oninput="OnUnitsChanged"
-                                       min="1" />
+                                <label class="form-label">@(selectedDoc.PricingType == PricingType.PerLine ? "تعداد سطر" : "تعداد صفحه")</label>
+                                <input type="number" class="form-control order-option-input" value="@units" @oninput="OnUnitsChanged" min="1" />
                             </div>
                         }
-
                         <div class="mb-3">
                             <label class="form-label">تعداد نسخه</label>
-
-                            <input type="number"
-                                   class="form-control"
-                                   value="@quantity"
-                                   @oninput="OnQuantityChanged"
-                                   min="1" />
+                            <input type="number" class="form-control order-option-input" value="@quantity" @oninput="OnQuantityChanged" min="1" />
                         </div>
-
-                        <div class="form-check mb-2">
-                            <input class="form-check-input"
-                                   type="checkbox"
-                                   id="judiciary"
-                                   checked="@needJudiciary"
-                                   @onchange="OnJudiciaryChanged" />
-
-                            <label class="form-check-label" for="judiciary">
-                                نیاز به تأیید دادگستری
+                        <div class="order-extra-options">
+                            <label class="order-option-check">
+                                <input type="checkbox" checked="@needJudiciary" @onchange="OnJudiciaryChanged" />
+                                <span><strong>تأیید دادگستری</strong><small>در صورت نیاز، تأییدیه دادگستری نیز دریافت شود.</small></span>
+                                <b>@selectedDoc.JudiciaryFee.ToString("N0") تومان</b>
+                            </label>
+                            <label class="order-option-check">
+                                <input type="checkbox" checked="@needForeignAffairs" @onchange="OnForeignChanged" />
+                                <span><strong>تأیید وزارت امور خارجه</strong><small>در صورت نیاز، تأییدیه وزارت امور خارجه نیز دریافت شود.</small></span>
+                                <b>@selectedDoc.ForeignAffairsFee.ToString("N0") تومان</b>
                             </label>
                         </div>
-
-                        <div class="form-check mb-3">
-                            <input class="form-check-input"
-                                   type="checkbox"
-                                   id="foreign"
-                                   checked="@needForeignAffairs"
-                                   @onchange="OnForeignChanged" />
-
-                            <label class="form-check-label" for="foreign">
-                                نیاز به تأیید وزارت خارجه
-                            </label>
-                        </div>
-
-                        <hr />
-
-                        <div class="mb-3">
-                            <label class="form-label fw-bold">
-                                بارگذاری تصویر یا فایل مدرک
-                            </label>
-
-                            <InputFile OnChange="OnFilesSelected"
-                                       multiple
-                                       accept=".pdf,.jpg,.jpeg,.png"
-                                       class="form-control"
-                                       disabled="@isSubmitting" />
-
-                            <small class="text-muted d-block mt-2">
-                                فرمت‌های مجاز: PDF، JPG، JPEG و PNG
-                                <br />
-                                حداکثر حجم هر فایل: ۱۰ مگابایت
-                                <br />
-                                حداکثر ۱۰ فایل و مجموعاً ۳۰ مگابایت برای هر مدرک
-                            </small>
-                        </div>
-
+                    </div>
+                    <div class="order-upload-box mt-4">
+                        <h6 class="mb-2"><i class="bi bi-cloud-arrow-up ms-2"></i>بارگذاری فایل مدرک</h6>
+                        <p class="text-muted small mb-3">تصویر یا فایل مدرک را برای بررسی و ترجمه بارگذاری کنید.</p>
+                        <InputFile OnChange="OnFilesSelected" multiple accept=".pdf,.jpg,.jpeg,.png" class="form-control" disabled="@isSubmitting" />
+                        <small class="text-muted d-block mt-2">فرمت‌های مجاز: PDF، JPG، JPEG و PNG؛ حداکثر ۱۰ مگابایت برای هر فایل، حداکثر ۱۰ فایل و مجموعاً ۳۰ مگابایت برای هر مدرک.</small>
                         @if (selectedFiles.Any())
                         {
-                            <div class="border rounded p-3 mb-3">
-                                <strong>فایل‌های انتخاب‌شده:</strong>
-
-                                <ul class="list-group list-group-flush mt-2">
-                                    @foreach (var file in selectedFiles)
-                                    {
-                                        <li class="list-group-item d-flex justify-content-between align-items-center px-0">
-                                            <span class="text-break">
-                                                @file.Name
-                                                <small class="text-muted">
-                                                    (@FormatFileSize(file.Size))
-                                                </small>
-                                            </span>
-
-                                            <button type="button"
-                                                    class="btn btn-sm btn-outline-danger"
-                                                    @onclick="() => RemoveSelectedFile(file)">
-                                                حذف
-                                            </button>
-                                        </li>
-                                    }
-                                </ul>
-                            </div>
+                            <ul class="list-group list-group-flush mt-3">
+                                @foreach (var file in selectedFiles)
+                                {
+                                    <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                                        <span class="text-break">@file.Name <small class="text-muted">(@FormatFileSize(file.Size))</small></span>
+                                        <button type="button" class="btn btn-sm btn-outline-danger" @onclick="() => RemoveSelectedFile(file)">حذف</button>
+                                    </li>
+                                }
+                            </ul>
                         }
-
-                        <div class="alert alert-info d-flex justify-content-between align-items-center">
-                            <strong>قیمت نهایی:</strong>
-
-                            <span class="fs-4 fw-bold">
-                                @currentPrice.ToString("N0") تومان
-                            </span>
+                    </div>
+                    <div class="order-price-summary mt-4">
+                        <div><span>مبلغ این مدرک</span><small>بر اساس گزینه‌های انتخاب‌شده</small></div>
+                        <strong>@currentPrice.ToString("N0") <small>تومان</small></strong>
+                    </div>
+                    <button type="button" class="btn order-add-button w-100 mt-3" @onclick="AddToCart" disabled="@(isSubmitting || !isCartLoaded || cartLoadFailed)">
+                        <i class="bi bi-cart-plus ms-2"></i> افزودن به سبد سفارش
+                    </button>
+                </div>
+            }
+            else if (!DocumentId.HasValue)
+            {
+                <div class="order-products-heading mb-3">
+                    <div><h5 class="mb-1">چه مدرکی برای ترجمه دارید؟</h5><p class="text-muted mb-0 small">برای مشاهده توضیحات و گزینه‌های هر مدرک، کارت آن را انتخاب کنید.</p></div>
+                    <span class="order-count">@documents.Count مورد</span>
+                </div>
+                <div class="row g-3">
+                    @foreach (var doc in documents)
+                    {
+                        <div class="col-md-6">
+                            <button type="button" class="order-product-card w-100 text-start" @onclick="() => GoToProduct(doc)">
+                                <div class="order-product-card-top">
+                                    @if (!string.IsNullOrWhiteSpace(doc.SampleImagePath))
+                                    {
+                                        <img class="order-product-card-image" src="@doc.SampleImagePath" alt="نمونه @doc.Name" />
+                                    }
+                                    else
+                                    {
+                                        <div class="order-product-icon"><i class="@GetDocumentIcon(doc)"></i></div>
+                                    }
+                                    <span class="order-card-arrow"><i class="bi bi-arrow-left"></i></span>
+                                </div>
+                                <h6>@doc.Name</h6>
+                                <p>@GetDocumentShortDescription(doc)</p>
+                                <div class="order-product-card-bottom">
+                                    <span>@GetPricingTypeText(doc)</span>
+                                    <strong>از @doc.BasePrice.ToString("N0") تومان</strong>
+                                </div>
+                            </button>
                         </div>
-
-                        <button type="button"
-                                class="btn btn-primary w-100"
-                                @onclick="AddToCart"
-                                disabled="@isSubmitting">
-                            افزودن به سبد
-                        </button>
                     }
                 </div>
-            </div>
+            }
+            else
+            {
+                <div class="alert alert-warning">مدرک موردنظر پیدا نشد یا در حال حاضر فعال نیست.</div>
+                <button type="button" class="btn btn-outline-secondary" @onclick="BackToProducts">بازگشت به فهرست مدارک</button>
+            }
         </div>
 
-        <div class="col-md-6">
+}
+
+                <div class="@(isCartPage ? "col-12" : "col-lg-5")">
             <div class="card mb-4">
 
-                <div class="card-header">
-                    سبد سفارش
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <strong>سبد سفارش</strong>
+                    @if (isCartPage)
+                    {
+                        <a href="/order/create" class="btn btn-sm btn-outline-success">افزودن مدرک جدید</a>
+                    }
                 </div>
 
                 <div class="card-body">
@@ -258,6 +269,12 @@ else
                             </div>
                         }
 
+                        <div class="mb-3">
+                            <label class="form-label">شماره موبایل صاحب سفارش</label>
+                            <input class="form-control" @bind="customerMobile" inputmode="tel" placeholder="09xxxxxxxxx" dir="ltr" />
+                            <small class="text-muted">برای نام‌گذاری فایل‌های سفارش استفاده می‌شود.</small>
+                        </div>
+
                         <div class="alert alert-success d-flex justify-content-between">
                             <strong>جمع کل سفارش:</strong>
 
@@ -271,7 +288,7 @@ else
                             <button type="button"
                                     class="btn btn-success w-100"
                                     @onclick="SubmitOrder"
-                                    disabled="@isSubmitting">
+                                    disabled="@(isSubmitting || !isCartLoaded)">
 
                                 @(isSubmitting
                                     ? "در حال ثبت اطلاعات..."
@@ -318,13 +335,16 @@ else
     private static readonly HashSet<string> AllowedExtensions =
         new(StringComparer.OrdinalIgnoreCase)
         {
-            ".pdf", ".jpg", ".jpeg", ".png"
+            ".pdf", ".jpg", ".jpeg", ".png", ".doc", ".docx"
         };
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNameCaseInsensitive = true
     };
+
+    [Parameter]
+    public int? DocumentId { get; set; }
 
     private List<DocumentType>? documents;
     private DocumentType? selectedDoc;
@@ -338,7 +358,11 @@ else
     private decimal currentPrice;
 
     private bool isSubmitting;
+    private string customerMobile = "";
     private bool isCartLoaded;
+    private bool cartLoadFailed;
+
+    private bool isCartPage => Navigation.ToBaseRelativePath(Navigation.Uri).Split('?')[0].TrimEnd('/').Equals("order/cart", StringComparison.OrdinalIgnoreCase);
 
     private string? errorMessage;
 
@@ -349,36 +373,40 @@ else
     private List<UploadedFileData> selectedFiles = new();
     private List<CartItem> cart = new();
 
-    private IJSObjectReference? cartStorage;
+    private string cartStorageKey = "guest";
 
     protected override async Task OnInitializedAsync()
     {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        var userId = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+        if (user.Identity?.IsAuthenticated == true &&
+            !string.IsNullOrWhiteSpace(userId))
+        {
+            cartStorageKey = $"user:{userId}";
+        }
+        else
+        {
+            var guestCartKey = CartService.GuestCartKey;
+            if (string.IsNullOrWhiteSpace(guestCartKey))
+                throw new InvalidOperationException("شناسه سبد مهمان در Layout مقداردهی نشده است.");
+
+            cartStorageKey = $"guest:{guestCartKey}";
+        }
+
         documents = await Db.DocumentTypes
             .AsNoTracking()
             .Where(x => x.IsActive)
             .OrderBy(x => x.Name)
             .ToListAsync();
-    }
-
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        if (!firstRender)
-            return;
 
         try
         {
-            cartStorage = await JS.InvokeAsync<IJSObjectReference>(
-                "import",
-                "./js/orderCartStorage.js");
-
-            var savedJson = await cartStorage.InvokeAsync<string?>("loadCart");
-
+            var savedJson = await CartService.LoadAsync(cartStorageKey);
             if (!string.IsNullOrWhiteSpace(savedJson))
             {
-                var state = JsonSerializer.Deserialize<GuestCartState>(
-                    savedJson,
-                    JsonOptions);
-
+                var state = JsonSerializer.Deserialize<GuestCartState>(savedJson, JsonOptions);
                 if (state != null)
                 {
                     cart = state.Items ?? new List<CartItem>();
@@ -387,28 +415,26 @@ else
 
                     if (activeOrderId.HasValue)
                     {
-                        var existingOrder = await Db.Orders
-                            .AsNoTracking()
+                        var existingOrder = await Db.Orders.AsNoTracking()
                             .FirstOrDefaultAsync(x => x.Id == activeOrderId.Value);
 
-                        var tokenIsValid =
+                        var isCurrentUserOwner =
+                            !string.IsNullOrWhiteSpace(userId) &&
+                            existingOrder?.UserId == userId;
+
+                        var isValidGuestOrder =
                             existingOrder != null &&
                             existingOrder.UserId == null &&
-                            GuestOrderToken.Verify(
-                                activeGuestToken,
-                                existingOrder.GuestAccessTokenHash);
+                            GuestOrderToken.Verify(activeGuestToken, existingOrder.GuestAccessTokenHash);
 
-                        if (!tokenIsValid)
+                        if (!isCurrentUserOwner && !isValidGuestOrder)
                         {
                             cart.Clear();
                             activeOrderId = null;
                             activeGuestToken = null;
                             activeOrderNumber = null;
-
                             await ClearPersistentCartAsync();
-
-                            errorMessage =
-                                "سفارش قبلی به حساب کاربری متصل شده یا اطلاعات دسترسی آن معتبر نیست. سبد مهمان پاک شد.";
+                            errorMessage = "سفارش قبلی متعلق به این حساب کاربری نیست یا اطلاعات دسترسی آن معتبر نیست. سبد قبلی پاک شد.";
                         }
                         else
                         {
@@ -420,31 +446,44 @@ else
         }
         catch (Exception ex)
         {
-            errorMessage =
-                "بازیابی سبد سفارش از مرورگر ناموفق بود: " +
-                ex.GetBaseException().Message;
+            errorMessage = "بازیابی سبد سفارش از پایگاه داده ناموفق بود: " + ex.GetBaseException().Message;
+            cartLoadFailed = true;
+            Console.Error.WriteLine(ex);
         }
         finally
         {
             isCartLoaded = true;
-            StateHasChanged();
         }
     }
 
-    private void OnDocumentChanged(ChangeEventArgs e)
+    protected override void OnParametersSet()
     {
-        selectedFiles.Clear();
-        errorMessage = null;
+        if (documents == null)
+            return;
 
-        if (int.TryParse(e.Value?.ToString(), out int id))
+        if (DocumentId.HasValue)
         {
-            selectedDoc = documents?.FirstOrDefault(x => x.Id == id);
+            var nextDocument = documents.FirstOrDefault(x => x.Id == DocumentId.Value);
 
-            units = 1;
-            quantity = 1;
-            needJudiciary = false;
-            needForeignAffairs = false;
+            if (nextDocument == null)
+            {
+                selectedDoc = null;
+                errorMessage = "مدرک موردنظر پیدا نشد یا در حال حاضر فعال نیست.";
+                currentPrice = 0;
+                return;
+            }
 
+            if (selectedDoc?.Id != nextDocument.Id)
+            {
+                selectedFiles.Clear();
+                units = 1;
+                quantity = 1;
+                needJudiciary = false;
+                needForeignAffairs = false;
+                errorMessage = null;
+            }
+
+            selectedDoc = nextDocument;
             CalculatePrice();
         }
         else
@@ -453,6 +492,63 @@ else
             currentPrice = 0;
         }
     }
+
+    private void GoToProduct(DocumentType doc)
+    {
+        Navigation.NavigateTo($"/order/product/{doc.Id}");
+    }
+
+    private void BackToProducts()
+    {
+        Navigation.NavigateTo("/order/create");
+    }
+
+    private static string GetPricingTypeText(DocumentType doc) =>
+        doc.PricingType switch
+        {
+            PricingType.Fixed => "قیمت ثابت",
+            PricingType.PerLine => "محاسبه بر اساس سطر",
+            PricingType.PerPage => "محاسبه بر اساس صفحه",
+            _ => "ترجمه رسمی"
+        };
+
+    private static string GetDocumentIcon(DocumentType doc) =>
+        doc.Name.Contains("شناسنامه") ? "bi bi-person-vcard" :
+        doc.Name.Contains("ریزنمرات") ? "bi bi-mortarboard" :
+        doc.Name.Contains("قرارداد") ? "bi bi-file-earmark-text" :
+        doc.PricingType == PricingType.PerPage ? "bi bi-file-earmark-richtext" :
+        doc.PricingType == PricingType.PerLine ? "bi bi-text-paragraph" :
+        "bi bi-file-earmark-check";
+
+    private static string GetDocumentDescription(DocumentType doc)
+    {
+        if (!string.IsNullOrWhiteSpace(doc.Description))
+            return doc.Description;
+
+        if (doc.Name.Contains("شناسنامه"))
+            return "ترجمه رسمی شناسنامه برای ارائه به سفارت‌ها، دانشگاه‌ها و سازمان‌های داخل یا خارج از کشور. امکان انتخاب تأیید دادگستری و وزارت امور خارجه نیز وجود دارد.";
+
+        if (doc.Name.Contains("ریزنمرات"))
+            return "ترجمه رسمی ریزنمرات و سوابق تحصیلی برای ارائه به دانشگاه‌ها، مراکز آموزشی و مراجع ارزیابی مدارک. هزینه بر اساس تعداد صفحات محاسبه می‌شود.";
+
+        if (doc.Name.Contains("قرارداد"))
+            return "ترجمه رسمی قراردادها و اسناد توافقی برای ارائه به مراجع قانونی، شرکت‌ها و سازمان‌ها. هزینه بر اساس تعداد سطرهای متن محاسبه می‌شود.";
+
+        return doc.PricingType switch
+        {
+            PricingType.Fixed => "هزینه ترجمه این مدرک به‌صورت ثابت محاسبه می‌شود. در صورت نیاز می‌توانید خدمات تأیید دادگستری و وزارت امور خارجه را نیز انتخاب کنید.",
+            PricingType.PerLine => "هزینه ترجمه این مدرک بر اساس تعداد سطرهای متن محاسبه می‌شود. تعداد سطرها و خدمات تأیید موردنیاز را در ادامه مشخص کنید.",
+            PricingType.PerPage => "هزینه ترجمه این مدرک بر اساس تعداد صفحات محاسبه می‌شود. تعداد صفحات و خدمات تأیید موردنیاز را در ادامه مشخص کنید.",
+            _ => "جزئیات و گزینه‌های موردنیاز برای ثبت سفارش را در این صفحه انتخاب کنید."
+        };
+    }
+
+    private static string GetDocumentShortDescription(DocumentType doc)
+    {
+        var description = GetDocumentDescription(doc);
+        return description.Length > 105 ? description[..102] + "..." : description;
+    }
+
 
     private void OnUnitsChanged(ChangeEventArgs e)
     {
@@ -637,6 +733,7 @@ else
         currentPrice = 0;
 
         await SavePersistentCartAsync();
+        Navigation.NavigateTo("/order/create");
     }
 
     private async Task RemoveFromCart(CartItem item)
@@ -660,7 +757,33 @@ else
         isSubmitting = true;
         errorMessage = null;
 
-        string guestToken = activeGuestToken ?? GuestOrderToken.Generate();
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var currentUser = authState.User;
+        var currentUserId = currentUser.Identity?.IsAuthenticated == true
+            ? currentUser.FindFirst(ClaimTypes.NameIdentifier)?.Value
+            : null;
+
+        var guestToken = currentUserId == null
+            ? activeGuestToken ?? GuestOrderToken.Generate()
+            : null;
+
+        var accountMobile = currentUserId == null
+            ? null
+            : await Db.Users.AsNoTracking()
+                .Where(x => x.Id == currentUserId)
+                .Select(x => x.PhoneNumber)
+                .FirstOrDefaultAsync();
+
+        var mobileForOrder = string.IsNullOrWhiteSpace(accountMobile)
+            ? customerMobile.Trim()
+            : accountMobile.Trim();
+
+        if (string.IsNullOrWhiteSpace(mobileForOrder))
+        {
+            errorMessage = "برای ثبت سفارش، شماره موبایل صاحب سفارش را وارد کنید.";
+            isSubmitting = false;
+            return;
+        }
 
         var savedDocuments = new List<OrderDocument>();
 
@@ -679,8 +802,13 @@ else
                     OrderNumber = "TR-" +
                         Guid.NewGuid().ToString("N")[..12].ToUpperInvariant(),
 
-                    UserId = null,
-                    GuestAccessTokenHash = GuestOrderToken.Hash(guestToken),
+                    // سفارش مشتری واردشده مستقیماً به حساب او متصل می‌شود.
+                    // فقط سفارش مهمان توکن دسترسی مستقل دارد.
+                    UserId = currentUserId,
+                    CustomerMobile = mobileForOrder,
+                    GuestAccessTokenHash = currentUserId == null
+                        ? GuestOrderToken.Hash(guestToken!)
+                        : null,
                     Status = "PendingPayment",
                     ProgressStatus = "Pending",
                     CreatedAt = DateTime.Now
@@ -694,20 +822,21 @@ else
                     .Include(x => x.Items)
                     .FirstOrDefaultAsync(x => x.Id == activeOrderId!.Value)
                     ?? throw new InvalidOperationException(
-                        "سفارش مهمان قبلی پیدا نشد.");
+                        "سفارش قبلی پیدا نشد.");
 
-                if (order.UserId != null)
+                var isCurrentUserOwner =
+                    !string.IsNullOrWhiteSpace(currentUserId) &&
+                    order.UserId == currentUserId;
+
+                var isValidGuestOrder =
+                    currentUserId == null &&
+                    order.UserId == null &&
+                    GuestOrderToken.Verify(guestToken, order.GuestAccessTokenHash);
+
+                if (!isCurrentUserOwner && !isValidGuestOrder)
                 {
                     throw new InvalidOperationException(
-                        "این سفارش قبلاً به حساب کاربری متصل شده است. برای ثبت سفارش جدید، سبد جدید ایجاد کنید.");
-                }
-
-                if (!GuestOrderToken.Verify(
-                    guestToken,
-                    order.GuestAccessTokenHash))
-                {
-                    throw new InvalidOperationException(
-                        "توکن دسترسی سفارش معتبر نیست. امکان افزودن اطلاعات وجود ندارد.");
+                        "این سفارش متعلق به حساب فعلی نیست یا توکن دسترسی سفارش مهمان معتبر نیست.");
                 }
 
                 if (order.Status != "PendingPayment")
@@ -715,6 +844,11 @@ else
                     throw new InvalidOperationException(
                         "به این سفارش به دلیل وضعیت فعلی آن نمی‌توان اطلاعات جدید اضافه کرد.");
                 }
+
+                if (!string.IsNullOrWhiteSpace(order.CustomerMobile))
+                    mobileForOrder = order.CustomerMobile;
+                else
+                    order.CustomerMobile = mobileForOrder;
             }
 
             var newOrderItems = new List<(CartItem Cart, OrderItem Item)>();
@@ -793,8 +927,12 @@ else
             {
                 foreach (var file in entry.Cart.Files)
                 {
+                    var extension = Path.GetExtension(file.Name).ToLowerInvariant();
+                    var generatedFileName =
+                        $"{mobileForOrder}_{DateTime.Now:yyyyMMdd}_{Guid.NewGuid().ToString("N")[..6]}{extension}";
+
                     var savedDocument = await DocumentStorage.SaveAsync(
-                        file.Name,
+                        generatedFileName,
                         file.Content,
                         order.Id,
                         entry.Item.Id);
@@ -810,7 +948,7 @@ else
 
             activeOrderId = order.Id;
             activeOrderNumber = order.OrderNumber;
-            activeGuestToken = guestToken;
+            activeGuestToken = currentUserId == null ? guestToken : null;
 
             foreach (var item in pendingItems)
             {
@@ -825,8 +963,11 @@ else
 
             await SavePersistentCartAsync();
 
-            Navigation.NavigateTo(
-                $"/order/success/{order.Id}?token={Uri.EscapeDataString(guestToken)}");
+            var successUrl = currentUserId != null
+                ? $"/order/success/{order.Id}"
+                : $"/order/success/{order.Id}?token={Uri.EscapeDataString(guestToken!)}";
+
+            Navigation.NavigateTo(successUrl);
         }
         catch (Exception ex)
         {
@@ -857,27 +998,19 @@ else
 
     private async Task SavePersistentCartAsync()
     {
-        if (cartStorage == null)
-            return;
-
         var state = new GuestCartState
         {
             OrderId = activeOrderId,
             GuestToken = activeGuestToken,
             Items = cart
         };
-
         var json = JsonSerializer.Serialize(state, JsonOptions);
-
-        await cartStorage.InvokeVoidAsync("saveCart", json);
+        await CartService.SaveAsync(cartStorageKey, json, activeOrderId);
     }
 
     private async Task ClearPersistentCartAsync()
     {
-        if (cartStorage == null)
-            return;
-
-        await cartStorage.InvokeVoidAsync("clearCart");
+        await CartService.DeleteAsync(cartStorageKey);
     }
 
     private static string FormatFileSize(long size)

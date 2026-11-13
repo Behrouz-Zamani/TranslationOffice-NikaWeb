@@ -1,4 +1,6 @@
-﻿namespace TranslationOffice.Models;
+﻿using System.ComponentModel.DataAnnotations;
+
+namespace TranslationOffice.Models;
 
 public enum PricingType
 {
@@ -11,6 +13,9 @@ public class DocumentType
 {
     public int Id { get; set; }
     public string Name { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    [MaxLength(300)]
+    public string? SampleImagePath { get; set; }
     public PricingType PricingType { get; set; }
     public decimal BasePrice { get; set; }
     public int FreeUnits { get; set; }

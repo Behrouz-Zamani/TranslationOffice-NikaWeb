@@ -1,13 +1,20 @@
-﻿@inherits LayoutComponentBase
+@inherits LayoutComponentBase
+@implements IDisposable
 
 @using System.Security.Claims
+@using Microsoft.AspNetCore.Components
+@using Microsoft.AspNetCore.Http
 @using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.EntityFrameworkCore
 @using TranslationOffice.Data
 @using TranslationOffice.Models
+@using TranslationOffice.Services
 
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject IDbContextFactory<ApplicationDbContext> DbFactory
+@inject CartService CartService
+@inject PersistentComponentState PersistentState
+@inject IHttpContextAccessor HttpContextAccessor
 
 <HeadContent>
     <link href="/css/mainlayout.css?v=4" rel="stylesheet" />
@@ -65,6 +72,12 @@
                                     سفارش‌های من
                                 </NavLink>
                             </li>
+                            <li class="nav-item">
+                                <NavLink class="nav-link" href="/account/profile" @onclick="CloseMenu">
+                                    <span class="menu-icon">♙</span>
+                                    پروفایل من
+                                </NavLink>
+                            </li>
                         }
 
                         @if (isAdmin)
@@ -101,6 +114,17 @@
                     </ul>
 
                     <div class="nav-actions">
+                        <a href="/order/cart"
+                           class="header-cart-link @(cartAnimation ? "cart-animate" : "")"
+                           aria-label="سبد سفارش، @cartItemCount قلم"
+                           title="سبد سفارش">
+                            <span class="header-cart-icon"><i class="bi bi-cart3"></i></span>
+                            @if (cartItemCount > 0)
+                            {
+                                <span class="header-cart-count">@cartItemCount</span>
+                            }
+                            <span class="header-cart-label">سبد سفارش</span>
+                        </a>
                         <AuthorizeView>
                             <Authorized Context="auth">
                                 <div class="user-profile">
@@ -155,6 +179,7 @@
                     <a href="/">صفحه اصلی</a>
                     <a href="/order/create">ثبت سفارش</a>
                     <a href="/account/orders">سفارش‌های من</a>
+                    <a href="/account/profile">پروفایل من</a>
                 </div>
                 <div class="footer-contact">
                     <strong>خدمات ما</strong>
@@ -176,22 +201,49 @@
     private bool isTranslator;
     private bool isCustomer;
     private bool isMenuOpen;
-
-    private void ToggleMenu() => isMenuOpen = !isMenuOpen;
-    private void CloseMenu() => isMenuOpen = false;
+    private int cartItemCount;
+    private string cartStorageKey = "guest";
+    private bool cartAnimation;
+    private PersistingComponentStateSubscription? guestCartKeySubscription;
 
     protected override async Task OnInitializedAsync()
     {
+        CartService.CartChanged += HandleCartChanged;
+
         var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
         var user = authState.User;
-
-        if (user.Identity?.IsAuthenticated != true) return;
-
         var userId = user.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (string.IsNullOrWhiteSpace(userId)) return;
+
+        if (user.Identity?.IsAuthenticated == true &&
+            !string.IsNullOrWhiteSpace(userId))
+        {
+            cartStorageKey = $"user:{userId}";
+        }
+        else
+        {
+            if (!PersistentState.TryTakeFromJson<string>("NikaGuestCartKey", out var guestKey) ||
+                string.IsNullOrWhiteSpace(guestKey))
+            {
+                guestKey =
+                    HttpContextAccessor.HttpContext?.Items["NikaGuestCartKey"] as string
+                    ?? HttpContextAccessor.HttpContext?.Request.Cookies["nika-cart-id"]
+                    ?? Guid.NewGuid().ToString("N");
+
+                guestCartKeySubscription =
+                    PersistentState.RegisterOnPersisting(PersistGuestCartKeyAsync);
+            }
+
+            CartService.GuestCartKey = guestKey;
+            cartStorageKey = $"guest:{guestKey}";
+        }
+
+        cartItemCount = await CartService.GetCountAsync(cartStorageKey);
+
+        if (user.Identity?.IsAuthenticated != true ||
+            string.IsNullOrWhiteSpace(userId))
+            return;
 
         await using var db = await DbFactory.CreateDbContextAsync();
-
         var role = await db.Users
             .AsNoTracking()
             .Where(x => x.Id == userId)
@@ -202,6 +254,41 @@
         isTranslator = role == "Translator";
         isCustomer = role == "Customer";
     }
+
+    private Task PersistGuestCartKeyAsync()
+    {
+        PersistentState.PersistAsJson("NikaGuestCartKey", CartService.GuestCartKey);
+        return Task.CompletedTask;
+    }
+
+    private void HandleCartChanged(string storageKey, int itemCount)
+    {
+        if (!string.Equals(storageKey, cartStorageKey, StringComparison.Ordinal))
+            return;
+
+        _ = InvokeAsync(async () =>
+        {
+            cartItemCount = Math.Max(0, itemCount);
+            cartAnimation = cartItemCount > 0;
+            StateHasChanged();
+
+            if (cartAnimation)
+            {
+                await Task.Delay(650);
+                cartAnimation = false;
+                StateHasChanged();
+            }
+        });
+    }
+
+    public void Dispose()
+    {
+        CartService.CartChanged -= HandleCartChanged;
+        guestCartKeySubscription?.Dispose();
+    }
+
+    private void ToggleMenu() => isMenuOpen = !isMenuOpen;
+    private void CloseMenu() => isMenuOpen = false;
 
     private static string GetInitial(string? name)
     {

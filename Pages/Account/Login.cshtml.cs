@@ -1,4 +1,3 @@
-
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -56,7 +55,6 @@ public class LoginModel : PageModel
         if (result.Succeeded)
         {
             var user = await _userManager.FindByNameAsync(Phone);
-
             var role = user?.Role?.Trim();
 
             if (string.Equals(role, "Admin",
@@ -71,7 +69,14 @@ public class LoginModel : PageModel
                 return Redirect("/translator/orders");
             }
 
-            // مشتری یا کاربر عادی
+            // مشتری باید به آدرسی برگردد که قبل از ورود درخواست کرده بود.
+            // این موضوع برای اتصال سفارش مهمان به حساب کاربری ضروری است.
+            if (!string.IsNullOrWhiteSpace(ReturnUrl) &&
+                Url.IsLocalUrl(ReturnUrl))
+            {
+                return LocalRedirect(ReturnUrl);
+            }
+
             return Redirect("/");
         }
 

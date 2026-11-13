@@ -1,0 +1,296 @@
+@page "/account/profile"
+
+@using System.ComponentModel.DataAnnotations
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Identity
+@using TranslationOffice.Models
+
+@attribute [Authorize]
+@rendermode InteractiveServer
+
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject UserManager<ApplicationUser> UserManager
+@inject NavigationManager NavigationManager
+
+<PageTitle>پروفایل من</PageTitle>
+
+<div class="container py-4" dir="rtl">
+    <div class="mb-4">
+        <h3 class="fw-bold mb-1">پروفایل من</h3>
+        <p class="text-muted mb-0">اطلاعات حساب کاربری و امنیت حساب خود را مدیریت کنید.</p>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status"></div>
+            <p class="text-muted mt-2">در حال دریافت اطلاعات حساب...</p>
+        </div>
+    }
+    else if (currentUser is null)
+    {
+        <div class="alert alert-danger">@pageError</div>
+    }
+    else
+    {
+        @if (!string.IsNullOrWhiteSpace(pageError))
+        {
+            <div class="alert alert-danger" role="alert">@pageError</div>
+        }
+
+        <div class="row g-4">
+            <div class="col-lg-7">
+                <div class="card border-0 shadow-sm h-100">
+                    <div class="card-header bg-white py-3">
+                        <h5 class="fw-bold mb-0">اطلاعات شخصی</h5>
+                    </div>
+                    <div class="card-body">
+                        @if (!string.IsNullOrWhiteSpace(profileMessage))
+                        {
+                            <div class="alert alert-success" role="status">@profileMessage</div>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(profileError))
+                        {
+                            <div class="alert alert-danger" role="alert">@profileError</div>
+                        }
+
+                        <EditForm Model="@profileModel" OnValidSubmit="@SaveProfileAsync">
+                            <DataAnnotationsValidator />
+                            <div class="mb-3">
+                                <label class="form-label" for="firstName">نام</label>
+                                <InputText id="firstName" class="form-control" @bind-Value="profileModel.FirstName" />
+                                <ValidationMessage For="@(() => profileModel.FirstName)" class="text-danger small" />
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label" for="lastName">نام خانوادگی</label>
+                                <InputText id="lastName" class="form-control" @bind-Value="profileModel.LastName" />
+                                <ValidationMessage For="@(() => profileModel.LastName)" class="text-danger small" />
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label" for="phone">شماره موبایل</label>
+                                <input id="phone" class="form-control" value="@currentUser.PhoneNumber" readonly dir="ltr" />
+                                <div class="form-text">شماره موبایل شناسه ورود شماست. تغییر آن به فرایند تأیید شماره جدید نیاز دارد و در این صفحه انجام نمی‌شود.</div>
+                            </div>
+
+                            <button type="submit" class="btn btn-primary" disabled="@isSavingProfile">
+                                @if (isSavingProfile)
+                                {
+                                    <span class="spinner-border spinner-border-sm ms-1"></span>
+                                    <span>در حال ذخیره...</span>
+                                }
+                                else
+                                {
+                                    <span>ذخیره تغییرات</span>
+                                }
+                            </button>
+                        </EditForm>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-5">
+                <div class="card border-0 shadow-sm h-100">
+                    <div class="card-header bg-white py-3">
+                        <h5 class="fw-bold mb-0">تغییر رمز عبور</h5>
+                    </div>
+                    <div class="card-body">
+                        @if (!string.IsNullOrWhiteSpace(passwordMessage))
+                        {
+                            <div class="alert alert-success" role="status">@passwordMessage</div>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(passwordError))
+                        {
+                            <div class="alert alert-danger" role="alert">@passwordError</div>
+                        }
+
+                        <EditForm Model="@passwordModel" OnValidSubmit="@ChangePasswordAsync">
+                            <DataAnnotationsValidator />
+                            <div class="mb-3">
+                                <label class="form-label" for="currentPassword">رمز عبور فعلی</label>
+                                <InputText id="currentPassword" type="password" class="form-control" autocomplete="current-password" @bind-Value="passwordModel.CurrentPassword" />
+                                <ValidationMessage For="@(() => passwordModel.CurrentPassword)" class="text-danger small" />
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label" for="newPassword">رمز عبور جدید</label>
+                                <InputText id="newPassword" type="password" class="form-control" autocomplete="new-password" @bind-Value="passwordModel.NewPassword" />
+                                <ValidationMessage For="@(() => passwordModel.NewPassword)" class="text-danger small" />
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label" for="confirmPassword">تکرار رمز عبور جدید</label>
+                                <InputText id="confirmPassword" type="password" class="form-control" autocomplete="new-password" @bind-Value="passwordModel.ConfirmPassword" />
+                                <ValidationMessage For="@(() => passwordModel.ConfirmPassword)" class="text-danger small" />
+                            </div>
+
+                            <button type="submit" class="btn btn-outline-primary" disabled="@isChangingPassword">
+                                @if (isChangingPassword)
+                                {
+                                    <span class="spinner-border spinner-border-sm ms-1"></span>
+                                    <span>در حال تغییر...</span>
+                                }
+                                else
+                                {
+                                    <span>تغییر رمز عبور</span>
+                                }
+                            </button>
+                        </EditForm>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="mt-4">
+            <a href="/account/orders" class="btn btn-outline-secondary">بازگشت به سفارش‌های من</a>
+        </div>
+    }
+</div>
+
+@code {
+    private ApplicationUser? currentUser;
+    private ProfileInput profileModel = new();
+    private PasswordInput passwordModel = new();
+
+    private bool isLoading = true;
+    private bool isSavingProfile;
+    private bool isChangingPassword;
+
+    private string? pageError;
+    private string? profileMessage;
+    private string? profileError;
+    private string? passwordMessage;
+    private string? passwordError;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var userId = authState.User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+            if (string.IsNullOrWhiteSpace(userId))
+            {
+                pageError = "شناسه حساب کاربری قابل شناسایی نیست.";
+                return;
+            }
+
+            currentUser = await UserManager.FindByIdAsync(userId);
+
+            if (currentUser is null)
+            {
+                pageError = "حساب کاربری پیدا نشد.";
+                return;
+            }
+
+            profileModel.FirstName = currentUser.FirstName;
+            profileModel.LastName = currentUser.LastName;
+        }
+        catch (Exception ex)
+        {
+            pageError = $"دریافت اطلاعات حساب با خطا مواجه شد: {ex.GetBaseException().Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task SaveProfileAsync()
+    {
+        if (currentUser is null || isSavingProfile)
+            return;
+
+        isSavingProfile = true;
+        profileMessage = null;
+        profileError = null;
+
+        try
+        {
+            currentUser.FirstName = profileModel.FirstName.Trim();
+            currentUser.LastName = profileModel.LastName.Trim();
+            currentUser.FullName = $"{currentUser.FirstName} {currentUser.LastName}".Trim();
+
+            var result = await UserManager.UpdateAsync(currentUser);
+
+            if (!result.Succeeded)
+            {
+                profileError = string.Join(" ", result.Errors.Select(x => x.Description));
+                return;
+            }
+
+            profileMessage = "اطلاعات پروفایل با موفقیت ذخیره شد.";
+        }
+        catch (Exception ex)
+        {
+            profileError = $"ذخیره اطلاعات با خطا مواجه شد: {ex.GetBaseException().Message}";
+        }
+        finally
+        {
+            isSavingProfile = false;
+        }
+    }
+
+    private async Task ChangePasswordAsync()
+    {
+        if (currentUser is null || isChangingPassword)
+            return;
+
+        isChangingPassword = true;
+        passwordMessage = null;
+        passwordError = null;
+
+        try
+        {
+            var result = await UserManager.ChangePasswordAsync(
+                currentUser,
+                passwordModel.CurrentPassword,
+                passwordModel.NewPassword);
+
+            if (!result.Succeeded)
+            {
+                passwordError = string.Join(" ", result.Errors.Select(x => x.Description));
+                return;
+            }
+
+            passwordModel = new PasswordInput();
+            NavigationManager.NavigateTo("/Account/Login?passwordChanged=true", forceLoad: true);
+        }
+        catch (Exception ex)
+        {
+            passwordError = $"تغییر رمز عبور با خطا مواجه شد: {ex.GetBaseException().Message}";
+        }
+        finally
+        {
+            isChangingPassword = false;
+        }
+    }
+
+    private sealed class ProfileInput
+    {
+        [Required(ErrorMessage = "نام را وارد کنید.")]
+        [StringLength(100, ErrorMessage = "نام نمی‌تواند بیشتر از ۱۰۰ کاراکتر باشد.")]
+        public string FirstName { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "نام خانوادگی را وارد کنید.")]
+        [StringLength(100, ErrorMessage = "نام خانوادگی نمی‌تواند بیشتر از ۱۰۰ کاراکتر باشد.")]
+        public string LastName { get; set; } = string.Empty;
+    }
+
+    private sealed class PasswordInput
+    {
+        [Required(ErrorMessage = "رمز عبور فعلی را وارد کنید.")]
+        public string CurrentPassword { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "رمز عبور جدید را وارد کنید.")]
+        [MinLength(8, ErrorMessage = "رمز عبور جدید باید حداقل ۸ کاراکتر باشد.")]
+        public string NewPassword { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "تکرار رمز عبور جدید را وارد کنید.")]
+        [Compare(nameof(NewPassword), ErrorMessage = "رمزهای عبور جدید یکسان نیستند.")]
+        public string ConfirmPassword { get; set; } = string.Empty;
+    }
+}

@@ -39,6 +39,24 @@
         </button>
     </div>
 
+    @if (isTranslator && translatorBankInfo != null)
+    {
+        <div class="card shadow-sm border-0 mb-4">
+            <div class="card-header bg-white"><strong>اطلاعات بانکی و سهم ترجمه من</strong></div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-4"><small class="text-muted d-block">بانک</small>@(translatorBankInfo.BankName ?? "ثبت نشده")</div>
+                    <div class="col-md-4"><small class="text-muted d-block">صاحب حساب</small>@(translatorBankInfo.BankAccountHolder ?? "ثبت نشده")</div>
+                    <div class="col-md-4"><small class="text-muted d-block">شماره شبا</small><span dir="ltr">@(translatorBankInfo.BankSheba ?? "ثبت نشده")</span></div>
+                    <div class="col-md-4"><small class="text-muted d-block">شماره حساب</small><span dir="ltr">@(translatorBankInfo.BankAccountNumber ?? "ثبت نشده")</span></div>
+                    <div class="col-md-4"><small class="text-muted d-block">شماره کارت</small><span dir="ltr">@(translatorBankInfo.BankCardNumber ?? "ثبت نشده")</span></div>
+                    <div class="col-md-4"><small class="text-muted d-block">درصد سهم من</small>@translatorBankInfo.TranslatorCommissionPercent.ToString("0.##")٪ از حق‌الترجمه</div>
+                </div>
+                <small class="text-muted d-block mt-2">برای اصلاح اطلاعات بانکی با مدیریت تماس بگیرید.</small>
+            </div>
+        </div>
+    }
+
     @if (!string.IsNullOrWhiteSpace(errorMessage))
     {
         <div class="alert alert-danger">
@@ -283,12 +301,12 @@
 
                                     <InputFile OnChange="@(e => UploadDeliveryFiles(item.Id, e))"
                                                multiple
-                                               accept=".pdf,.jpg,.jpeg,.png"
+                                               accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
                                                class="form-control"
                                                disabled="@(isUploading || isSaving)" />
 
                                     <small class="text-muted">
-                                        فرمت‌های مجاز: PDF، JPG، JPEG و PNG
+                                        فرمت‌های مجاز: PDF، JPG، JPEG، PNG، DOC و DOCX
                                         <br />
                                         حداکثر حجم هر فایل: ۱۰ مگابایت
                                     </small>
@@ -364,10 +382,13 @@
             ".pdf",
             ".jpg",
             ".jpeg",
-            ".png"
+            ".png",
+            ".doc",
+            ".docx"
         };
 
     private List<OrderItem> items = new();
+    private ApplicationUser? translatorBankInfo;
 
     private Dictionary<int, string> selectedStatuses = new();
 
@@ -399,11 +420,13 @@
                 return;
             }
 
-            isTranslator = await Db.Users
+            translatorBankInfo = await Db.Users
                 .AsNoTracking()
-                .AnyAsync(x =>
+                .FirstOrDefaultAsync(x =>
                     x.Id == currentUserId &&
                     x.Role == "Translator");
+
+            isTranslator = translatorBankInfo != null;
 
             if (!isTranslator)
             {
@@ -493,6 +516,7 @@
                 throw new Exception("وضعیت انتخاب‌شده معتبر نیست.");
 
             var item = await Db.OrderItems
+                .Include(x => x.DocumentType)
                 .FirstOrDefaultAsync(x =>
                     x.Id == itemId &&
                     x.TranslatorId == currentUserId);
@@ -513,6 +537,33 @@
                     throw new Exception(
                         "برای تکمیل ترجمه، ابتدا حداقل یک فایل ترجمه‌شده بارگذاری کنید.");
                 }
+            }
+
+            if (newStatus == "Completed" && item.CompletedAt == null)
+            {
+                var translatorRate = await Db.Users
+                    .AsNoTracking()
+                    .Where(x => x.Id == currentUserId && x.Role == "Translator")
+                    .Select(x => x.TranslatorCommissionPercent)
+                    .SingleAsync();
+
+                // حق‌الترجمه شامل مبلغ پایه و واحدهای اضافه است.
+                // هزینه کپی، دادگستری و وزارت خارجه عمداً حذف می‌شوند.
+                var translationFee = item.DocumentType.BasePrice;
+
+                if (item.DocumentType.PricingType != PricingType.Fixed &&
+                    item.Units > item.DocumentType.FreeUnits)
+                {
+                    translationFee +=
+                        (item.Units - item.DocumentType.FreeUnits) *
+                        item.DocumentType.PricePerExtraUnit;
+                }
+
+                item.TranslationFeeToman = translationFee;
+                item.TranslatorCommissionPercentSnapshot = translatorRate;
+                item.TranslatorEarningToman =
+                    decimal.Round(translationFee * translatorRate / 100m, 0);
+                item.CompletedAt = DateTime.UtcNow;
             }
 
             item.Status = newStatus;
@@ -604,6 +655,7 @@
             }
 
             var item = await Db.OrderItems
+                .Include(x => x.Order)
                 .FirstOrDefaultAsync(x =>
                     x.Id == orderItemId &&
                     x.TranslatorId == currentUserId);
@@ -618,6 +670,22 @@
 
             if (files.Count == 0)
                 throw new Exception("فایلی انتخاب نشده است.");
+
+            var customerMobile = item.Order.CustomerMobile;
+
+            if (string.IsNullOrWhiteSpace(customerMobile) &&
+                !string.IsNullOrWhiteSpace(item.Order.UserId))
+            {
+                customerMobile = await Db.Users
+                    .AsNoTracking()
+                    .Where(x => x.Id == item.Order.UserId)
+                    .Select(x => x.PhoneNumber)
+                    .FirstOrDefaultAsync();
+            }
+
+            if (string.IsNullOrWhiteSpace(customerMobile))
+                throw new InvalidOperationException(
+                    "شماره موبایل مشتری برای نام‌گذاری فایل تحویلی در دسترس نیست.");
 
             await using var transaction =
                 await Db.Database.BeginTransactionAsync();
@@ -662,7 +730,7 @@
                     OrderId = item.OrderId,
                     OrderItemId = item.Id,
                     TranslatorId = currentUserId,
-                    OriginalFileName = Path.GetFileName(file.Name),
+                    OriginalFileName = $"{customerMobile}_Rasmiha_{DateTime.Now:yyyyMMdd}_{Guid.NewGuid().ToString("N")[..6]}{extension.ToLowerInvariant()}",
                     StoredFileName = storedFileName,
                     ContentType = GetContentType(extension),
                     FileSize = file.Size,
@@ -711,6 +779,8 @@
             ".jpg" => "image/jpeg",
             ".jpeg" => "image/jpeg",
             ".png" => "image/png",
+            ".doc" => "application/msword",
+            ".docx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             _ => "application/octet-stream"
         };
     }

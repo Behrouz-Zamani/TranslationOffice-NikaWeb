@@ -15,13 +15,16 @@ public class DeliveryFilesController : ControllerBase
 {
     private readonly ApplicationDbContext _db;
     private readonly OrderDeliveryFileStorageService _storage;
+    private readonly IFileSecurityScanner _scanner;
 
     public DeliveryFilesController(
         ApplicationDbContext db,
-        OrderDeliveryFileStorageService storage)
+        OrderDeliveryFileStorageService storage,
+        IFileSecurityScanner scanner)
     {
         _db = db;
         _storage = storage;
+        _scanner = scanner;
     }
 
     [HttpGet("{fileId:int}/download")]
@@ -74,6 +77,10 @@ public class DeliveryFilesController : ControllerBase
 
         if (fileBytes == null)
             return NotFound("فایل در فضای ذخیره‌سازی پیدا نشد.");
+
+        var scan = await _scanner.ScanAsync(file.OriginalFileName, fileBytes, cancellationToken);
+        if (!scan.IsClean)
+            return UnprocessableEntity("این فایل به دلیل محتوای مخرب قابل دانلود نیست.");
 
         var fileName = Path.GetFileName(file.OriginalFileName);
 

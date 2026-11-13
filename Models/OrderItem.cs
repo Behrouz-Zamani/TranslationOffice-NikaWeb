@@ -17,6 +17,18 @@ public class OrderItem
 
     public string Status { get; set; } = "Pending";
     public string? TranslatorId { get; set; }
+
+    // Snapshot مالی هنگام تکمیل ترجمه؛ تغییر نرخ مترجم سوابق قبلی را عوض نمی‌کند.
+    public decimal? TranslationFeeToman { get; set; }
+    public decimal? TranslatorCommissionPercentSnapshot { get; set; }
+    public decimal? TranslatorEarningToman { get; set; }
+    public DateTime? CompletedAt { get; set; }
+
+    // تأیید یا اعتراض مترجم نسبت به صورت‌حساب کارکرد خود
+    public string TranslatorEarningReviewStatus { get; set; } = "Pending";
+    public string? TranslatorEarningReviewNote { get; set; }
+    public DateTime? TranslatorEarningReviewedAt { get; set; }
+
     public List<OrderDocument> Documents { get; set; } = new();
     public List<OrderDeliveryFile> DeliveryFiles { get; set; } = new();
 }

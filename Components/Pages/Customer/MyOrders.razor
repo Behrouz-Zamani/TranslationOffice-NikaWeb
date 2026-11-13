@@ -63,7 +63,8 @@ else
                         <th>تاریخ ثبت</th>
                         <th>تعداد مدارک</th>
                         <th>مبلغ کل</th>
-                        <th>وضعیت</th>
+                        <th>وضعیت پرداخت</th>
+                        <th>وضعیت ترجمه</th>
                         <th>جزئیات</th>
                     </tr>
                 </thead>
@@ -90,8 +91,14 @@ else
                             </td>
 
                             <td>
-                                <span class="badge @GetStatusClass(order.Status)">
-                                    @GetStatusText(order.Status)
+                                <span class="badge @GetPaymentStatusClass(order.Status)">
+                                    @GetPaymentStatusText(order.Status)
+                                </span>
+                            </td>
+
+                            <td>
+                                <span class="badge @GetProgressStatusClass(order.ProgressStatus)">
+                                    @GetProgressStatusText(order.ProgressStatus)
                                 </span>
                             </td>
 
@@ -156,28 +163,52 @@ else
         }
     }
 
-    private static string GetStatusText(string? status)
+    private static string GetPaymentStatusText(string? status)
     {
         return status switch
         {
             "PendingPayment" => "در انتظار پرداخت",
             "Paid" => "پرداخت‌شده",
-            "Pending" => "در انتظار بررسی",
-            "InProgress" => "در حال انجام",
+            "Failed" => "پرداخت ناموفق",
+            "Refunded" => "مستردشده",
+            "Cancelled" => "لغوشده",
+            _ => status ?? "نامشخص"
+        };
+    }
+
+    private static string GetPaymentStatusClass(string? status)
+    {
+        return status switch
+        {
+            "Paid" => "bg-success",
+            "PendingPayment" => "bg-warning text-dark",
+            "Failed" => "bg-danger",
+            "Refunded" => "bg-info text-dark",
+            "Cancelled" => "bg-secondary",
+            _ => "bg-secondary"
+        };
+    }
+
+    private static string GetProgressStatusText(string? status)
+    {
+        return status switch
+        {
+            "Pending" => "در انتظار شروع",
+            "InProgress" => "در حال ترجمه",
             "Completed" => "تکمیل‌شده",
             "Cancelled" => "لغوشده",
             _ => status ?? "نامشخص"
         };
     }
 
-    private static string GetStatusClass(string? status)
+    private static string GetProgressStatusClass(string? status)
     {
         return status switch
         {
-            "Paid" or "Completed" => "bg-success",
-            "PendingPayment" => "bg-warning text-dark",
-            "Cancelled" => "bg-danger",
+            "Completed" => "bg-success",
             "InProgress" => "bg-primary",
+            "Pending" => "bg-warning text-dark",
+            "Cancelled" => "bg-danger",
             _ => "bg-secondary"
         };
     }

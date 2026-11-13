@@ -19,10 +19,33 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<Payment> Payments { get; set; }
     public DbSet<OrderDocument> OrderDocuments { get; set; }
     public DbSet<OrderDeliveryFile> OrderDeliveryFiles { get; set; }
+    public DbSet<ShoppingCart> ShoppingCarts { get; set; }
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
+
+        builder.Entity<ApplicationUser>(entity =>
+        {
+            entity.Property(x => x.BankName).HasMaxLength(100);
+            entity.Property(x => x.BankAccountHolder).HasMaxLength(150);
+            entity.Property(x => x.BankAccountNumber).HasMaxLength(50);
+            entity.Property(x => x.BankCardNumber).HasMaxLength(30);
+            entity.Property(x => x.BankSheba).HasMaxLength(40);
+            entity.Property(x => x.TranslatorCommissionPercent).HasPrecision(5, 2);
+        });
+
+        builder.Entity<OrderItem>(entity =>
+        {
+            entity.Property(x => x.TranslationFeeToman).HasPrecision(18, 0);
+            entity.Property(x => x.TranslatorCommissionPercentSnapshot).HasPrecision(5, 2);
+            entity.Property(x => x.TranslatorEarningToman).HasPrecision(18, 0);
+            entity.Property(x => x.TranslatorEarningReviewStatus)
+                .HasMaxLength(20)
+                .IsRequired()
+                .HasDefaultValue("Pending");
+            entity.Property(x => x.TranslatorEarningReviewNote).HasMaxLength(1000);
+        });
 
         // تنظیمات سفارش
         builder.Entity<Order>(entity =>
@@ -36,6 +59,8 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
                 .IsRequired()
                 .HasDefaultValue("Pending");
 
+            entity.Property(x => x.CustomerMobile).HasMaxLength(20);
+
             entity.Property(x => x.GuestAccessTokenHash)
                 .HasMaxLength(64);
 
@@ -43,6 +68,15 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
 
             entity.Property(x => x.TotalPrice)
                 .HasPrecision(18, 0);
+        });
+
+        // سبدهای سفارش مشتری و مهمان
+        builder.Entity<ShoppingCart>(entity =>
+        {
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.CartKey).HasMaxLength(500).IsRequired();
+            entity.Property(x => x.CartJson).HasColumnType("nvarchar(max)").IsRequired();
+            entity.HasIndex(x => x.CartKey).IsUnique();
         });
 
         // پرداخت
@@ -65,6 +99,24 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
 
             entity.Property(x => x.FailureReason)
                 .HasMaxLength(500);
+
+            entity.Property(x => x.ReceiptOriginalFileName)
+                .HasMaxLength(255);
+
+            entity.Property(x => x.ReceiptStoredFileName)
+                .HasMaxLength(100);
+
+            entity.Property(x => x.ReceiptContentType)
+                .HasMaxLength(100);
+
+            entity.Property(x => x.PayerName)
+                .HasMaxLength(150);
+
+            entity.Property(x => x.TransferReference)
+                .HasMaxLength(100);
+
+            entity.Property(x => x.ReviewedByUserId)
+                .HasMaxLength(450);
 
             entity.HasOne(x => x.Order)
                 .WithMany(x => x.Payments)

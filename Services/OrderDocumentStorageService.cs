@@ -11,13 +11,15 @@ public class OrderDocumentStorageService
     private static readonly HashSet<string> AllowedExtensions =
         new(StringComparer.OrdinalIgnoreCase)
         {
-            ".pdf", ".jpg", ".jpeg", ".png"
+            ".pdf", ".jpg", ".jpeg", ".png", ".doc", ".docx"
         };
 
     private readonly string _storagePath;
+    private readonly IFileSecurityScanner _scanner;
 
-    public OrderDocumentStorageService(IWebHostEnvironment environment)
+    public OrderDocumentStorageService(IWebHostEnvironment environment, IFileSecurityScanner scanner)
     {
+        _scanner = scanner;
         _storagePath = Path.Combine(
             environment.ContentRootPath,
             "App_Data",
@@ -41,6 +43,10 @@ public class OrderDocumentStorageService
 
         if (!AllowedExtensions.Contains(extension))
             throw new InvalidOperationException("فرمت فایل مجاز نیست.");
+
+        var scan = await _scanner.ScanAsync(originalFileName, content, cancellationToken);
+        if (!scan.IsClean)
+            throw new InvalidOperationException(scan.Message);
 
         Directory.CreateDirectory(_storagePath);
 
@@ -161,6 +167,8 @@ public class OrderDocumentStorageService
             ".pdf" => "application/pdf",
             ".jpg" or ".jpeg" => "image/jpeg",
             ".png" => "image/png",
+            ".doc" => "application/msword",
+            ".docx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             _ => "application/octet-stream"
         };
     }
