@@ -1,0 +1,359 @@
+@page "/admin/translator-payments"
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.EntityFrameworkCore
+@using TranslationOffice.Data
+@using TranslationOffice.Models
+@using TranslationOffice.Components.Shared
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject IDbContextFactory<ApplicationDbContext> DbFactory
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject NavigationManager Navigation
+
+<PageTitle>پرداخت‌های مترجمان</PageTitle>
+
+<div class="container py-4" dir="rtl">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
+        <div>
+            <h3 class="mb-1">پرداخت‌های مترجمان</h3>
+            <div class="text-muted">ثبت پرداخت، مشاهده مانده دستمزد و تاریخچه تسویه‌ها</div>
+        </div>
+        <a href="/admin/translator-earnings" class="btn btn-outline-secondary">گزارش کارکرد مترجمان</a>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="text-center py-5"><div class="spinner-border"></div><p class="mt-2">در حال بارگذاری...</p></div>
+    }
+    else if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="alert alert-danger">@errorMessage</div>
+    }
+    else
+    {
+        @if (!string.IsNullOrWhiteSpace(successMessage))
+        {
+            <div class="alert alert-success">@successMessage</div>
+        }
+        <div class="row g-3 mb-4">
+            <div class="col-md-4"><div class="card h-100 shadow-sm"><div class="card-body"><div class="text-muted">دستمزد تأییدشده</div><h4>@Money(totalEarnings) تومان</h4></div></div></div>
+            <div class="col-md-4"><div class="card h-100 shadow-sm"><div class="card-body"><div class="text-muted">مجموع پرداخت‌های ثبت‌شده</div><h4 class="text-primary">@Money(totalPaid) تومان</h4></div></div></div>
+            <div class="col-md-4"><div class="card h-100 shadow-sm"><div class="card-body"><div class="text-muted">مانده قابل پرداخت</div><h4 class="@(totalEarnings-totalPaid < 0 ? "text-danger" : "text-success")">@Money(totalEarnings-totalPaid) تومان</h4></div></div></div>
+        </div>
+
+        <div class="card shadow-sm mb-4">
+            <div class="card-header"><strong>ثبت پرداخت جدید به مترجم</strong></div>
+            <div class="card-body">
+                <EditForm Model="form" OnValidSubmit="SavePayment">
+                    <DataAnnotationsValidator />
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label class="form-label">مترجم</label>
+                            <InputSelect class="form-select" @bind-Value="form.TranslatorId">
+                                <option value="">انتخاب مترجم</option>
+                                @foreach (var t in translators)
+                                {
+                                    <option value="@t.Id">@t.FullName — مانده: @Money(GetBalance(t.Id)) تومان</option>
+                                }
+                            </InputSelect>
+                            <ValidationMessage For="() => form.TranslatorId" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">مبلغ پرداخت (تومان)</label>
+                            <InputNumber class="form-control" @bind-Value="form.AmountToman" />
+                            <ValidationMessage For="() => form.AmountToman" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">تاریخ پرداخت</label>
+                            <PersianDatePicker @bind-Value="paidAt" Placeholder="انتخاب تاریخ پرداخت" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">روش پرداخت</label>
+                            <InputSelect class="form-select" @bind-Value="form.Method">
+                                <option value="BankTransfer">واریز بانکی</option>
+                                <option value="CardToCard">کارت‌به‌کارت</option>
+                                <option value="Cash">نقدی</option>
+                                <option value="Other">سایر</option>
+                            </InputSelect>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">شماره پیگیری / مرجع</label>
+                            <InputText class="form-control" @bind-Value="form.TrackingNumber" maxlength="100" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">توضیحات</label>
+                            <InputText class="form-control" @bind-Value="form.Description" maxlength="1000" />
+                        </div>
+                    </div>
+                    <div class="mt-3 d-flex gap-2 align-items-center">
+                        <button class="btn btn-primary" type="submit" disabled="@isSaving">@(isSaving ? "در حال ثبت..." : "ثبت پرداخت")</button>
+                        <span class="text-muted small">پرداخت‌ها مستقل از پرداخت مشتریان ثبت می‌شوند.</span>
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+
+        <div class="card shadow-sm mb-4">
+            <div class="card-header"><strong>مانده حساب مترجمان</strong><span class="text-muted small me-2">(فقط دستمزدهای تأییدشده)</span></div>
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead><tr><th>مترجم</th><th>دستمزد تأییدشده</th><th>پرداخت‌شده</th><th>مانده</th><th>اطلاعات بانکی</th></tr></thead>
+                    <tbody>
+                    @foreach (var t in translators)
+                    {
+                        var earned = GetEarnings(t.Id);
+                        var paid = GetPaid(t.Id);
+                        <tr>
+                            <td class="fw-semibold">@t.FullName</td>
+                            <td>@Money(earned) تومان</td>
+                            <td>@Money(paid) تومان</td>
+                            <td class="fw-bold @(earned-paid < 0 ? "text-danger" : "text-success")">@Money(earned-paid) تومان</td>
+                            <td class="small text-muted">
+                                @if (!string.IsNullOrWhiteSpace(t.BankName)) { <div>@t.BankName</div> }
+                                @if (!string.IsNullOrWhiteSpace(t.BankCardNumber)) { <div>کارت: @t.BankCardNumber</div> }
+                                @if (!string.IsNullOrWhiteSpace(t.BankSheba)) { <div>شبا: @t.BankSheba</div> }
+                                @if (string.IsNullOrWhiteSpace(t.BankName) && string.IsNullOrWhiteSpace(t.BankCardNumber) && string.IsNullOrWhiteSpace(t.BankSheba)) { <span>ثبت نشده</span> }
+                            </td>
+                        </tr>
+                    }
+                    @if (!translators.Any()) { <tr><td colspan="5" class="text-center text-muted py-4">مترجمی ثبت نشده است.</td></tr> }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="card shadow-sm">
+            <div class="card-header"><strong>تاریخچه پرداخت‌ها</strong></div>
+            <div class="card-body border-bottom">
+                <div class="row g-2 align-items-end">
+                    <div class="col-md-4"><label class="form-label">مترجم</label>
+                        <InputSelect class="form-select" @bind-Value="filterTranslatorId">
+                            <option value="">همه مترجمان</option>
+                            @foreach (var t in translators) { <option value="@t.Id">@t.FullName</option> }
+                        </InputSelect>
+                    </div>
+                    <div class="col-md-3"><label class="form-label">از تاریخ</label><PersianDatePicker @bind-Value="filterFrom" Placeholder="از تاریخ" Clearable="true" /></div>
+                    <div class="col-md-3"><label class="form-label">تا تاریخ</label><PersianDatePicker @bind-Value="filterTo" Placeholder="تا تاریخ" Clearable="true" /></div>
+                    <div class="col-md-2"><button class="btn btn-outline-primary w-100" @onclick="LoadData">اعمال فیلتر</button></div>
+                </div>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-striped align-middle mb-0">
+                    <thead><tr><th>تاریخ پرداخت</th><th>مترجم</th><th>مبلغ</th><th>روش</th><th>پیگیری</th><th>توضیحات</th><th>وضعیت</th><th>عملیات</th></tr></thead>
+                    <tbody>
+                    @foreach (var p in payments)
+                    {
+                        <tr class="@(p.IsVoided ? "text-muted" : "")">
+                            <td>@ToJalali(p.PaidAt)</td>
+                            <td>@p.TranslatorName</td>
+                            <td class="fw-bold">@Money(p.AmountToman) تومان</td>
+                            <td>@MethodName(p.Method)</td>
+                            <td>@p.TrackingNumber</td>
+                            <td>@p.Description</td>
+                            <td>@(p.IsVoided ? "باطل‌شده" : "ثبت‌شده")</td>
+                            <td>
+                                @if (!p.IsVoided)
+                                {
+                                    <button class="btn btn-sm btn-outline-danger" @onclick="() => VoidPayment(p.Id)">ابطال</button>
+                                }
+                            </td>
+                        </tr>
+                    }
+                    @if (!payments.Any()) { <tr><td colspan="8" class="text-center text-muted py-4">پرداختی در این فیلتر یافت نشد.</td></tr> }
+                    </tbody>
+                </table>
+            </div>
+            <div class="card-footer small text-muted">برای حفظ سابقه مالی، پرداخت حذف نمی‌شود؛ در صورت اشتباه آن را ابطال کنید. ابطال در مانده حساب لحاظ نخواهد شد.</div>
+        </div>
+    }
+</div>
+
+@code {
+    private bool isLoading = true;
+    private bool isSaving;
+    private string? errorMessage;
+    private string? successMessage;
+    private string? adminId;
+    private DateTime? paidAt = DateTime.Today;
+    private DateTime? filterFrom;
+    private DateTime? filterTo;
+    private string filterTranslatorId = "";
+    private decimal totalEarnings;
+    private decimal totalPaid;
+    private List<ApplicationUser> translators = new();
+    private List<PaymentRow> payments = new();
+    private Dictionary<string, decimal> earningsByTranslator = new();
+    private Dictionary<string, decimal> paidByTranslator = new();
+    private PaymentForm form = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        adminId = state.User.FindFirstValue(ClaimTypes.NameIdentifier);
+        await using var db = await DbFactory.CreateDbContextAsync();
+        if (string.IsNullOrWhiteSpace(adminId) ||
+            !await db.Users.AsNoTracking().AnyAsync(x => x.Id == adminId && x.Role == "Admin"))
+        {
+            Navigation.NavigateTo("/", true);
+            return;
+        }
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        isLoading = true;
+        errorMessage = null;
+        try
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
+            translators = await db.Users.AsNoTracking()
+                .Where(x => x.Role == "Translator")
+                .OrderBy(x => x.FullName).ToListAsync();
+
+            var earnings = await db.OrderItems.AsNoTracking()
+                .Where(x => x.TranslatorId != null &&
+                            x.TranslatorEarningToman != null &&
+                            x.TranslatorEarningReviewStatus == "Confirmed")
+                .GroupBy(x => x.TranslatorId!)
+                .Select(g => new { TranslatorId = g.Key, Total = g.Sum(x => x.TranslatorEarningToman!.Value) })
+                .ToListAsync();
+            earningsByTranslator = earnings.ToDictionary(x => x.TranslatorId, x => x.Total);
+
+            var paid = await db.Set<TranslatorPayment>().AsNoTracking()
+                .Where(x => !x.IsVoided)
+                .GroupBy(x => x.TranslatorId)
+                .Select(g => new { TranslatorId = g.Key, Total = g.Sum(x => x.AmountToman) })
+                .ToListAsync();
+            paidByTranslator = paid.ToDictionary(x => x.TranslatorId, x => x.Total);
+            totalEarnings = earningsByTranslator.Values.Sum();
+            totalPaid = paidByTranslator.Values.Sum();
+
+            var query = db.Set<TranslatorPayment>().AsNoTracking()
+                .Include(x => x.Translator)
+                .AsQueryable();
+            if (!string.IsNullOrWhiteSpace(filterTranslatorId))
+                query = query.Where(x => x.TranslatorId == filterTranslatorId);
+            if (filterFrom.HasValue)
+                query = query.Where(x => x.PaidAt >= DateTime.SpecifyKind(filterFrom.Value.Date, DateTimeKind.Local));
+            if (filterTo.HasValue)
+                query = query.Where(x => x.PaidAt < DateTime.SpecifyKind(filterTo.Value.Date.AddDays(1), DateTimeKind.Local));
+
+            payments = await query.OrderByDescending(x => x.PaidAt)
+                .Select(x => new PaymentRow
+                {
+                    Id = x.Id, TranslatorName = x.Translator.FullName,
+                    AmountToman = x.AmountToman, PaidAt = x.PaidAt, Method = x.Method,
+                    TrackingNumber = x.TrackingNumber, Description = x.Description, IsVoided = x.IsVoided
+                }).ToListAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"خطا در دریافت اطلاعات: {ex.GetBaseException().Message}";
+        }
+        finally { isLoading = false; }
+    }
+
+    private async Task SavePayment()
+    {
+        if (isSaving) return;
+        successMessage = null;
+        errorMessage = null;
+        if (string.IsNullOrWhiteSpace(form.TranslatorId) || form.AmountToman <= 0 || !paidAt.HasValue)
+        {
+            errorMessage = "مترجم، مبلغ مثبت و تاریخ پرداخت را مشخص کنید.";
+            return;
+        }
+        if (!translators.Any(x => x.Id == form.TranslatorId))
+        {
+            errorMessage = "مترجم انتخاب‌شده معتبر نیست.";
+            return;
+        }
+
+        isSaving = true;
+        try
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
+            var payment = new TranslatorPayment
+            {
+                TranslatorId = form.TranslatorId,
+                AmountToman = decimal.Round(form.AmountToman, 0),
+                PaidAt = DateTime.SpecifyKind(paidAt.Value.Date, DateTimeKind.Local),
+                Method = form.Method,
+                TrackingNumber = string.IsNullOrWhiteSpace(form.TrackingNumber) ? null : form.TrackingNumber.Trim(),
+                Description = string.IsNullOrWhiteSpace(form.Description) ? null : form.Description.Trim(),
+                CreatedByAdminId = adminId!,
+                CreatedAt = DateTime.Now
+            };
+            db.Set<TranslatorPayment>().Add(payment);
+            await db.SaveChangesAsync();
+            form = new PaymentForm { TranslatorId = form.TranslatorId, Method = "BankTransfer" };
+            successMessage = "پرداخت با موفقیت ثبت شد.";
+            await LoadData();
+        }
+        catch (Exception ex) { errorMessage = $"ثبت پرداخت انجام نشد: {ex.GetBaseException().Message}"; }
+        finally { isSaving = false; }
+    }
+
+    private async Task VoidPayment(int id)
+    {
+        var confirmed = await JSConfirmAsync("آیا از ابطال این پرداخت مطمئن هستید؟ سابقه آن حفظ می‌شود.");
+        if (!confirmed) return;
+        try
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
+            var payment = await db.Set<TranslatorPayment>().FirstOrDefaultAsync(x => x.Id == id && !x.IsVoided);
+            if (payment == null) return;
+            payment.IsVoided = true;
+            payment.VoidedAt = DateTime.Now;
+            payment.VoidedByAdminId = adminId;
+            payment.VoidReason = "ابطال توسط مدیر";
+            await db.SaveChangesAsync();
+            successMessage = "پرداخت با موفقیت باطل شد.";
+            await LoadData();
+        }
+        catch (Exception ex) { errorMessage = $"ابطال پرداخت انجام نشد: {ex.GetBaseException().Message}"; }
+    }
+
+    [Inject] private IJSRuntime JS { get; set; } = default!;
+    private async Task<bool> JSConfirmAsync(string message) => await JS.InvokeAsync<bool>("confirm", message);
+
+    private decimal GetEarnings(string id) => earningsByTranslator.GetValueOrDefault(id);
+    private decimal GetPaid(string id) => paidByTranslator.GetValueOrDefault(id);
+    private decimal GetBalance(string id) => GetEarnings(id) - GetPaid(id);
+    private static string Money(decimal amount) => amount.ToString("N0");
+    private static string MethodName(string method) => method switch
+    {
+        "BankTransfer" => "واریز بانکی", "CardToCard" => "کارت‌به‌کارت",
+        "Cash" => "نقدی", _ => "سایر"
+    };
+    private static string ToJalali(DateTime date)
+    {
+        var pc = new System.Globalization.PersianCalendar();
+        return $"{pc.GetYear(date):0000}/{pc.GetMonth(date):00}/{pc.GetDayOfMonth(date):00}";
+    }
+
+    private sealed class PaymentForm
+    {
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "انتخاب مترجم الزامی است.")]
+        public string TranslatorId { get; set; } = "";
+        [System.ComponentModel.DataAnnotations.Range(1, 999999999999, ErrorMessage = "مبلغ باید بیشتر از صفر باشد.")]
+        public decimal AmountToman { get; set; }
+        public string Method { get; set; } = "BankTransfer";
+        public string? TrackingNumber { get; set; }
+        public string? Description { get; set; }
+    }
+    private sealed class PaymentRow
+    {
+        public int Id { get; set; }
+        public string TranslatorName { get; set; } = "";
+        public decimal AmountToman { get; set; }
+        public DateTime PaidAt { get; set; }
+        public string Method { get; set; } = "";
+        public string? TrackingNumber { get; set; }
+        public string? Description { get; set; }
+        public bool IsVoided { get; set; }
+    }
+}
