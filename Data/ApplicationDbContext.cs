@@ -88,6 +88,9 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             entity.Property(x => x.Method).HasMaxLength(30).IsRequired();
             entity.Property(x => x.TrackingNumber).HasMaxLength(100);
             entity.Property(x => x.Description).HasMaxLength(1000);
+            entity.Property(x => x.ReceiptOriginalFileName).HasMaxLength(255);
+            entity.Property(x => x.ReceiptStoredFileName).HasMaxLength(100);
+            entity.Property(x => x.ReceiptContentType).HasMaxLength(100);
             entity.Property(x => x.CreatedByAdminId).HasMaxLength(450).IsRequired();
             entity.Property(x => x.VoidedByAdminId).HasMaxLength(450);
             entity.Property(x => x.VoidReason).HasMaxLength(500);
