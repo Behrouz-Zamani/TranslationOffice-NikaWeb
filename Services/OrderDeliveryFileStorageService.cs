@@ -13,13 +13,17 @@ public class OrderDeliveryFileStorageService
             ".pdf",
             ".jpg",
             ".jpeg",
-            ".png"
+            ".png",
+            ".doc",
+            ".docx"
         };
 
     private readonly string _storageRoot;
+    private readonly IFileSecurityScanner _scanner;
 
-    public OrderDeliveryFileStorageService(IWebHostEnvironment environment)
+    public OrderDeliveryFileStorageService(IWebHostEnvironment environment, IFileSecurityScanner scanner)
     {
+        _scanner = scanner;
         _storageRoot = Path.Combine(
             environment.ContentRootPath,
             "App_Data",
@@ -43,6 +47,10 @@ public class OrderDeliveryFileStorageService
 
         if (!AllowedExtensions.Contains(extension))
             throw new InvalidOperationException("فرمت فایل مجاز نیست.");
+
+        var scan = await _scanner.ScanAsync(originalFileName, content, cancellationToken);
+        if (!scan.IsClean)
+            throw new InvalidOperationException(scan.Message);
 
         var storedFileName = Guid.NewGuid().ToString("N") + extension.ToLowerInvariant();
 
