@@ -25,6 +25,23 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     {
         base.OnModelCreating(builder);
 
+        builder.Entity<ApplicationUser>(entity =>
+        {
+            entity.Property(x => x.BankName).HasMaxLength(100);
+            entity.Property(x => x.BankAccountHolder).HasMaxLength(150);
+            entity.Property(x => x.BankAccountNumber).HasMaxLength(50);
+            entity.Property(x => x.BankCardNumber).HasMaxLength(30);
+            entity.Property(x => x.BankSheba).HasMaxLength(40);
+            entity.Property(x => x.TranslatorCommissionPercent).HasPrecision(5, 2);
+        });
+
+        builder.Entity<OrderItem>(entity =>
+        {
+            entity.Property(x => x.TranslationFeeToman).HasPrecision(18, 0);
+            entity.Property(x => x.TranslatorCommissionPercentSnapshot).HasPrecision(5, 2);
+            entity.Property(x => x.TranslatorEarningToman).HasPrecision(18, 0);
+        });
+
         // تنظیمات سفارش
         builder.Entity<Order>(entity =>
         {
@@ -37,7 +54,7 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
                 .IsRequired()
                 .HasDefaultValue("Pending");
 
-            entity.Property(x => x.GuestAccessTokenHash)
+            entity.Property(x => x.CustomerMobile).HasMaxLength(20);\n\n            entity.Property(x => x.GuestAccessTokenHash)
                 .HasMaxLength(64);
 
             entity.HasIndex(x => x.GuestAccessTokenHash);
