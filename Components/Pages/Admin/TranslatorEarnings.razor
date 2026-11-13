@@ -1,0 +1,194 @@
+@page "/admin/translator-earnings"
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.EntityFrameworkCore
+@using TranslationOffice.Data
+@using TranslationOffice.Models
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject ApplicationDbContext Db
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject NavigationManager Navigation
+
+<PageTitle>گزارش کارکرد و دستمزد مترجمان</PageTitle>
+
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
+        <h3>گزارش کارکرد و دستمزد مترجمان</h3>
+        <a href="/admin/translators" class="btn btn-outline-secondary">مدیریت مترجمان</a>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="text-center py-5"><div class="spinner-border"></div><p class="mt-2">در حال دریافت گزارش...</p></div>
+    }
+    else if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="alert alert-danger">@errorMessage</div>
+    }
+    else
+    {
+        <div class="card shadow-sm mb-4">
+            <div class="card-body">
+                <div class="row g-3 align-items-end">
+                    <div class="col-md-4">
+                        <label class="form-label">از تاریخ تکمیل</label>
+                        <InputDate class="form-control" @bind-Value="fromDate" />
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">تا تاریخ تکمیل</label>
+                        <InputDate class="form-control" @bind-Value="toDate" />
+                    </div>
+                    <div class="col-md-4">
+                        <button class="btn btn-primary" @onclick="LoadReport" disabled="@isLoading">اعمال فیلتر</button>
+                        <button class="btn btn-outline-secondary me-2" @onclick="ClearFilter">همه تاریخ‌ها</button>
+                    </div>
+                </div>
+                <small class="text-muted d-block mt-2">مبنای محاسبه فقط حق‌الترجمه است؛ هزینه‌های دادگستری، وزارت امور خارجه و نسخه اضافه در دستمزد لحاظ نمی‌شوند.</small>
+            </div>
+        </div>
+
+        <div class="row g-3 mb-4">
+            <div class="col-md-4"><div class="card text-center h-100"><div class="card-body"><div class="text-muted">تعداد مدارک تکمیل‌شده</div><h3>@rows.Count</h3></div></div></div>
+            <div class="col-md-4"><div class="card text-center h-100"><div class="card-body"><div class="text-muted">جمع حق‌الترجمه</div><h3>@FormatMoney(rows.Sum(x => x.TranslationFee)) تومان</h3></div></div></div>
+            <div class="col-md-4"><div class="card text-center h-100"><div class="card-body"><div class="text-muted">جمع دستمزد مترجمان</div><h3 class="text-success">@FormatMoney(rows.Sum(x => x.Earning)) تومان</h3></div></div></div>
+        </div>
+
+        <div class="card shadow-sm mb-4">
+            <div class="card-header"><strong>خلاصه به تفکیک مترجم</strong></div>
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead><tr><th>مترجم</th><th>تعداد مدارک</th><th>حق‌الترجمه</th><th>دستمزد</th></tr></thead>
+                    <tbody>
+                    @foreach (var group in rows.GroupBy(x => new { x.TranslatorId, x.TranslatorName }))
+                    {
+                        <tr>
+                            <td>@group.Key.TranslatorName</td>
+                            <td>@group.Count()</td>
+                            <td>@FormatMoney(group.Sum(x => x.TranslationFee)) تومان</td>
+                            <td class="fw-bold">@FormatMoney(group.Sum(x => x.Earning)) تومان</td>
+                        </tr>
+                    }
+                    @if (!rows.Any()) { <tr><td colspan="4" class="text-center text-muted py-4">در این بازه موردی ثبت نشده است.</td></tr> }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="card shadow-sm">
+            <div class="card-header"><strong>جزئیات مدارک تکمیل‌شده</strong></div>
+            <div class="table-responsive">
+                <table class="table table-striped align-middle mb-0">
+                    <thead><tr><th>تاریخ تکمیل</th><th>شماره سفارش</th><th>نوع مدرک</th><th>مترجم</th><th>حق‌الترجمه</th><th>درصد</th><th>دستمزد</th></tr></thead>
+                    <tbody>
+                    @foreach (var row in rows.OrderByDescending(x => x.CompletedAt))
+                    {
+                        <tr>
+                            <td>@row.CompletedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</td>
+                            <td>@row.OrderNumber</td>
+                            <td>@row.DocumentName</td>
+                            <td>@row.TranslatorName</td>
+                            <td>@FormatMoney(row.TranslationFee)</td>
+                            <td>@row.Percent.ToString("0.##")٪</td>
+                            <td class="fw-bold">@FormatMoney(row.Earning)</td>
+                        </tr>
+                    }
+                    @if (!rows.Any()) { <tr><td colspan="7" class="text-center text-muted py-4">داده‌ای برای نمایش وجود ندارد.</td></tr> }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div class="alert alert-info mt-3">مبالغ به تومان هستند. سوابقی که پیش از فعال‌سازی این قابلیت تکمیل شده‌اند، فاقد snapshot مالی‌اند و در این گزارش نمایش داده نمی‌شوند.</div>
+    }
+</div>
+
+@code {
+    private bool isLoading = true;
+    private string? errorMessage;
+    private DateTime? fromDate;
+    private DateTime? toDate;
+    private List<EarningRow> rows = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var userId = state.User.FindFirstValue(ClaimTypes.NameIdentifier);
+        var isAdmin = !string.IsNullOrWhiteSpace(userId) &&
+            await Db.Users.AsNoTracking().AnyAsync(x => x.Id == userId && x.Role == "Admin");
+        if (!isAdmin) { Navigation.NavigateTo("/", true); return; }
+        await LoadReport();
+    }
+
+    private async Task LoadReport()
+    {
+        isLoading = true;
+        errorMessage = null;
+        try
+        {
+            var query = Db.OrderItems.AsNoTracking()
+                .Include(x => x.Order)
+                .Include(x => x.DocumentType)
+                .Where(x => x.CompletedAt != null &&
+                            x.TranslatorId != null &&
+                            x.TranslationFeeToman != null &&
+                            x.TranslatorCommissionPercentSnapshot != null &&
+                            x.TranslatorEarningToman != null);
+
+            if (fromDate.HasValue)
+            {
+                var from = DateTime.SpecifyKind(fromDate.Value.Date, DateTimeKind.Utc);
+                query = query.Where(x => x.CompletedAt >= from);
+            }
+            if (toDate.HasValue)
+            {
+                var until = DateTime.SpecifyKind(toDate.Value.Date.AddDays(1), DateTimeKind.Utc);
+                query = query.Where(x => x.CompletedAt < until);
+            }
+
+            var data = await query.OrderByDescending(x => x.CompletedAt).ToListAsync();
+            var translatorIds = data.Select(x => x.TranslatorId!).Distinct().ToList();
+            var users = await Db.Users.AsNoTracking()
+                .Where(x => translatorIds.Contains(x.Id))
+                .ToDictionaryAsync(x => x.Id, x => x.FullName);
+
+            rows = data.Select(x => new EarningRow
+            {
+                TranslatorId = x.TranslatorId!,
+                TranslatorName = users.TryGetValue(x.TranslatorId!, out var name) ? name : "مترجم حذف‌شده",
+                CompletedAt = x.CompletedAt!.Value,
+                OrderNumber = x.Order.OrderNumber,
+                DocumentName = x.DocumentType.Name,
+                TranslationFee = x.TranslationFeeToman!.Value,
+                Percent = x.TranslatorCommissionPercentSnapshot!.Value,
+                Earning = x.TranslatorEarningToman!.Value
+            }).ToList();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"خطا در تهیه گزارش: {ex.GetBaseException().Message}";
+        }
+        finally { isLoading = false; }
+    }
+
+    private async Task ClearFilter()
+    {
+        fromDate = null;
+        toDate = null;
+        await LoadReport();
+    }
+
+    private static string FormatMoney(decimal value) => value.ToString("N0");
+
+    private sealed class EarningRow
+    {
+        public string TranslatorId { get; set; } = "";
+        public string TranslatorName { get; set; } = "";
+        public DateTime CompletedAt { get; set; }
+        public string OrderNumber { get; set; } = "";
+        public string DocumentName { get; set; } = "";
+        public decimal TranslationFee { get; set; }
+        public decimal Percent { get; set; }
+        public decimal Earning { get; set; }
+    }
+}
