@@ -7,7 +7,7 @@
 @using TranslationOffice.Models
 @attribute [Authorize]
 @rendermode InteractiveServer
-@inject ApplicationDbContext Db
+@inject IDbContextFactory<ApplicationDbContext> DbFactory
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject NavigationManager Navigation
 
@@ -26,7 +26,10 @@
 
     @if (!string.IsNullOrWhiteSpace(errorMessage))
     {
-        <div class="alert alert-danger">@errorMessage</div>
+        <div class="alert alert-danger" role="alert">
+            @errorMessage
+            <div class="small mt-1">در صورت تکرار، متن همین خطا را برای پشتیبانی ارسال کنید.</div>
+        </div>
     }
     @if (!string.IsNullOrWhiteSpace(successMessage))
     {
@@ -35,7 +38,14 @@
 
     @if (isLoading)
     {
-        <div class="text-center py-5"><div class="spinner-border"></div><p class="mt-2">در حال دریافت اطلاعات...</p></div>
+        <div class="text-center py-5">
+            <div class="spinner-border" role="status"></div>
+            <p class="mt-2">در حال دریافت اطلاعات...</p>
+        </div>
+    }
+    else if (!isTranslator)
+    {
+        <div class="alert alert-warning">حساب کاربری شما به‌عنوان مترجم شناسایی نشد. لطفاً با مدیر سامانه تماس بگیرید.</div>
     }
     else
     {
@@ -81,7 +91,7 @@
                     <tbody>
                     @foreach (var row in rows)
                     {
-                        <tr>
+                        <tr @key="row.Id">
                             <td>@row.CompletedAt.ToLocalTime().ToString("yyyy/MM/dd")</td>
                             <td>@row.OrderNumber</td>
                             <td>@row.DocumentName</td>
@@ -113,7 +123,7 @@
                                         <button class="btn btn-sm btn-success" @onclick="() => Confirm(row.Id)" disabled="@isSaving">
                                             <i class="bi bi-check-circle"></i> تأیید مبلغ
                                         </button>
-                                        <InputText class="form-control form-control-sm" @bind-Value="reviewNotes[row.Id]" placeholder="علت اعتراض را بنویسید" />
+                                        <InputText class="form-control form-control-sm" @bind-Value="row.ReviewInput" placeholder="علت اعتراض را بنویسید" />
                                         <button class="btn btn-sm btn-outline-danger" @onclick="() => Dispute(row.Id)" disabled="@isSaving">
                                             ثبت اعتراض
                                         </button>
@@ -141,51 +151,81 @@
     private string? currentUserId;
     private bool isLoading = true;
     private bool isSaving;
+    private bool isTranslator;
     private string? errorMessage;
     private string? successMessage;
     private List<EarningRow> rows = new();
-    private Dictionary<int, string> reviewNotes = new();
 
     protected override async Task OnInitializedAsync()
     {
-        var state = await AuthenticationStateProvider.GetAuthenticationStateAsync();
-        currentUserId = state.User.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (string.IsNullOrWhiteSpace(currentUserId))
+        try
         {
-            Navigation.NavigateTo("/", true);
-            return;
-        }
+            var state = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            currentUserId = state.User.FindFirstValue(ClaimTypes.NameIdentifier);
 
-        var validTranslator = await Db.Users.AsNoTracking()
-            .AnyAsync(x => x.Id == currentUserId && x.Role == "Translator");
-        if (!validTranslator)
+            if (string.IsNullOrWhiteSpace(currentUserId))
+            {
+                Navigation.NavigateTo("/Account/Login", true);
+                return;
+            }
+
+            await using var db = await DbFactory.CreateDbContextAsync();
+            isTranslator = await db.Users.AsNoTracking()
+                .AnyAsync(x => x.Id == currentUserId && x.Role == "Translator");
+
+            if (!isTranslator)
+                return;
+
+            await LoadDataCoreAsync();
+        }
+        catch (Exception ex)
         {
-            Navigation.NavigateTo("/", true);
-            return;
+            errorMessage = $"خطا در دریافت اطلاعات کارکرد: {ex.GetBaseException().Message}";
         }
-
-        await LoadData();
+        finally
+        {
+            isLoading = false;
+        }
     }
 
     private async Task LoadData()
     {
-        if (string.IsNullOrWhiteSpace(currentUserId)) return;
+        if (isLoading || isSaving)
+            return;
+
         isLoading = true;
         errorMessage = null;
+        successMessage = null;
+
         try
         {
-            var data = await Db.OrderItems.AsNoTracking()
-                .Where(x => x.TranslatorId == currentUserId &&
-                            x.CompletedAt != null &&
-                            x.TranslationFeeToman != null &&
-                            x.TranslatorCommissionPercentSnapshot != null &&
-                            x.TranslatorEarningToman != null)
-                .Include(x => x.Order)
-                .Include(x => x.DocumentType)
-                .OrderByDescending(x => x.CompletedAt)
-                .ToListAsync();
+            await LoadDataCoreAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"خطا در دریافت اطلاعات کارکرد: {ex.GetBaseException().Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
 
-            rows = data.Select(x => new EarningRow
+    private async Task LoadDataCoreAsync()
+    {
+        if (string.IsNullOrWhiteSpace(currentUserId))
+            throw new InvalidOperationException("شناسه کاربر واردشده قابل تشخیص نیست.");
+
+        await using var db = await DbFactory.CreateDbContextAsync();
+
+        var data = await db.OrderItems.AsNoTracking()
+            .Where(x => x.TranslatorId == currentUserId &&
+                        x.CompletedAt != null &&
+                        x.TranslationFeeToman != null &&
+                        x.TranslatorCommissionPercentSnapshot != null &&
+                        x.TranslatorEarningToman != null)
+            .OrderByDescending(x => x.CompletedAt)
+            .Select(x => new EarningRow
             {
                 Id = x.Id,
                 CompletedAt = x.CompletedAt!.Value,
@@ -196,58 +236,64 @@
                 Earning = x.TranslatorEarningToman!.Value,
                 ReviewStatus = x.TranslatorEarningReviewStatus,
                 ReviewNote = x.TranslatorEarningReviewNote
-            }).ToList();
+            })
+            .ToListAsync();
 
-            reviewNotes = rows.ToDictionary(x => x.Id, _ => "");
-        }
-        catch (Exception ex)
-        {
-            errorMessage = $"خطا در دریافت کارکرد: {ex.GetBaseException().Message}";
-        }
-        finally
-        {
-            isLoading = false;
-        }
+        rows = data;
     }
 
     private Task Confirm(int itemId) => SaveReview(itemId, "Confirmed");
 
     private Task Dispute(int itemId)
     {
-        var note = reviewNotes.TryGetValue(itemId, out var value) ? value?.Trim() : null;
+        var row = rows.FirstOrDefault(x => x.Id == itemId);
+        var note = row?.ReviewInput?.Trim();
+
         if (string.IsNullOrWhiteSpace(note) || note.Length < 5)
         {
             errorMessage = "برای ثبت اعتراض، علت آن را حداقل در ۵ نویسه بنویسید.";
             return Task.CompletedTask;
         }
+
         return SaveReview(itemId, "Disputed", note);
     }
 
     private async Task SaveReview(int itemId, string status, string? note = null)
     {
-        if (isSaving || string.IsNullOrWhiteSpace(currentUserId)) return;
+        if (isSaving || string.IsNullOrWhiteSpace(currentUserId))
+            return;
+
         isSaving = true;
         errorMessage = null;
         successMessage = null;
+
         try
         {
-            var item = await Db.OrderItems.FirstOrDefaultAsync(x =>
+            await using var db = await DbFactory.CreateDbContextAsync();
+
+            var item = await db.OrderItems.FirstOrDefaultAsync(x =>
                 x.Id == itemId && x.TranslatorId == currentUserId);
-            if (item == null) throw new InvalidOperationException("رکورد کارکرد پیدا نشد.");
+
+            if (item == null)
+                throw new InvalidOperationException("رکورد کارکرد پیدا نشد.");
+
             if (item.CompletedAt == null || item.TranslatorEarningToman == null)
                 throw new InvalidOperationException("این مدرک هنوز در گزارش دستمزد ثبت نشده است.");
+
             if (item.TranslatorEarningReviewStatus != "Pending")
                 throw new InvalidOperationException("این صورت‌حساب قبلاً بررسی و ثبت نهایی شده است.");
 
             item.TranslatorEarningReviewStatus = status;
             item.TranslatorEarningReviewNote = note;
             item.TranslatorEarningReviewedAt = DateTime.UtcNow;
-            await Db.SaveChangesAsync();
+
+            await db.SaveChangesAsync();
 
             successMessage = status == "Confirmed"
                 ? "صورت‌حساب این مدرک با موفقیت تأیید شد."
                 : "اعتراض شما ثبت شد و برای بررسی مدیریت قابل مشاهده است.";
-            await LoadData();
+
+            await LoadDataCoreAsync();
         }
         catch (Exception ex)
         {
@@ -272,5 +318,6 @@
         public decimal Earning { get; set; }
         public string ReviewStatus { get; set; } = "Pending";
         public string? ReviewNote { get; set; }
+        public string? ReviewInput { get; set; }
     }
 }
