@@ -23,6 +23,12 @@ public class OrderItem
     public decimal? TranslatorCommissionPercentSnapshot { get; set; }
     public decimal? TranslatorEarningToman { get; set; }
     public DateTime? CompletedAt { get; set; }
+
+    // تأیید یا اعتراض مترجم نسبت به صورت‌حساب کارکرد خود
+    public string TranslatorEarningReviewStatus { get; set; } = "Pending";
+    public string? TranslatorEarningReviewNote { get; set; }
+    public DateTime? TranslatorEarningReviewedAt { get; set; }
+
     public List<OrderDocument> Documents { get; set; } = new();
     public List<OrderDeliveryFile> DeliveryFiles { get; set; } = new();
 }
