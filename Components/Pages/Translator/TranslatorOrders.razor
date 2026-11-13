@@ -301,12 +301,12 @@
 
                                     <InputFile OnChange="@(e => UploadDeliveryFiles(item.Id, e))"
                                                multiple
-                                               accept=".pdf,.jpg,.jpeg,.png"
+                                               accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
                                                class="form-control"
                                                disabled="@(isUploading || isSaving)" />
 
                                     <small class="text-muted">
-                                        فرمت‌های مجاز: PDF، JPG، JPEG و PNG
+                                        فرمت‌های مجاز: PDF، JPG، JPEG، PNG، DOC و DOCX
                                         <br />
                                         حداکثر حجم هر فایل: ۱۰ مگابایت
                                     </small>
