@@ -493,6 +493,7 @@
                 throw new Exception("وضعیت انتخاب‌شده معتبر نیست.");
 
             var item = await Db.OrderItems
+                .Include(x => x.DocumentType)
                 .FirstOrDefaultAsync(x =>
                     x.Id == itemId &&
                     x.TranslatorId == currentUserId);
@@ -513,6 +514,33 @@
                     throw new Exception(
                         "برای تکمیل ترجمه، ابتدا حداقل یک فایل ترجمه‌شده بارگذاری کنید.");
                 }
+            }
+
+            if (newStatus == "Completed" && item.CompletedAt == null)
+            {
+                var translatorRate = await Db.Users
+                    .AsNoTracking()
+                    .Where(x => x.Id == currentUserId && x.Role == "Translator")
+                    .Select(x => x.TranslatorCommissionPercent)
+                    .SingleAsync();
+
+                // حق‌الترجمه شامل مبلغ پایه و واحدهای اضافه است.
+                // هزینه کپی، دادگستری و وزارت خارجه عمداً حذف می‌شوند.
+                var translationFee = item.DocumentType.BasePrice;
+
+                if (item.DocumentType.PricingType != PricingType.Fixed &&
+                    item.Units > item.DocumentType.FreeUnits)
+                {
+                    translationFee +=
+                        (item.Units - item.DocumentType.FreeUnits) *
+                        item.DocumentType.PricePerExtraUnit;
+                }
+
+                item.TranslationFeeToman = translationFee;
+                item.TranslatorCommissionPercentSnapshot = translatorRate;
+                item.TranslatorEarningToman =
+                    decimal.Round(translationFee * translatorRate / 100m, 0);
+                item.CompletedAt = DateTime.UtcNow;
             }
 
             item.Status = newStatus;
