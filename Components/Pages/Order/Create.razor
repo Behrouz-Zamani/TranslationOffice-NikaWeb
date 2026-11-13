@@ -845,7 +845,9 @@ else
                         "به این سفارش به دلیل وضعیت فعلی آن نمی‌توان اطلاعات جدید اضافه کرد.");
                 }
 
-                if (string.IsNullOrWhiteSpace(order.CustomerMobile))
+                if (!string.IsNullOrWhiteSpace(order.CustomerMobile))
+                    mobileForOrder = order.CustomerMobile;
+                else
                     order.CustomerMobile = mobileForOrder;
             }
 
