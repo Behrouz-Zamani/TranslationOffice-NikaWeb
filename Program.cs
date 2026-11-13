@@ -135,6 +135,35 @@ app.MapRazorPages();
 
 app.MapControllers();
 
+app.MapGet("/admin/translator-payments/receipt/{id:int}", async (
+    int id,
+    HttpContext http,
+    IDbContextFactory<ApplicationDbContext> dbFactory,
+    PaymentReceiptStorageService receiptStorage) =>
+{
+    var userId = http.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier);
+    if (userId == null)
+        return Results.Unauthorized();
+
+    await using var db = await dbFactory.CreateDbContextAsync();
+    var isAdmin = await db.Users.AsNoTracking()
+        .AnyAsync(x => x.Id == userId.Value && x.Role == "Admin");
+    if (!isAdmin)
+        return Results.Forbid();
+
+    var payment = await db.TranslatorPayments.AsNoTracking()
+        .FirstOrDefaultAsync(x => x.Id == id);
+    if (payment == null || string.IsNullOrWhiteSpace(payment.ReceiptStoredFileName))
+        return Results.NotFound();
+
+    var bytes = await receiptStorage.ReadAsync(payment.ReceiptStoredFileName);
+    if (bytes == null)
+        return Results.NotFound();
+
+    return Results.File(bytes, payment.ReceiptContentType ?? "application/octet-stream",
+        payment.ReceiptOriginalFileName ?? "receipt");
+}).RequireAuthorization();
+
 app.MapStaticAssets();
 
 app.MapRazorComponents<App>()
