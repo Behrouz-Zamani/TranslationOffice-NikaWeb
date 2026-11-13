@@ -40,6 +40,11 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             entity.Property(x => x.TranslationFeeToman).HasPrecision(18, 0);
             entity.Property(x => x.TranslatorCommissionPercentSnapshot).HasPrecision(5, 2);
             entity.Property(x => x.TranslatorEarningToman).HasPrecision(18, 0);
+            entity.Property(x => x.TranslatorEarningReviewStatus)
+                .HasMaxLength(20)
+                .IsRequired()
+                .HasDefaultValue("Pending");
+            entity.Property(x => x.TranslatorEarningReviewNote).HasMaxLength(1000);
         });
 
         // تنظیمات سفارش
