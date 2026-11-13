@@ -1,0 +1,143 @@
+@using System.Globalization
+
+<div class="jalali-picker" dir="rtl">
+    <div class="jalali-input-row">
+        <button type="button" class="form-control jalali-input" @onclick="ToggleCalendar" aria-label="انتخاب تاریخ">
+            <span>@DisplayValue</span>
+            <span class="jalali-calendar-icon">▦</span>
+        </button>
+        @if (Clearable && Value.HasValue)
+        {
+            <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="ClearValue" title="پاک کردن تاریخ">×</button>
+        }
+    </div>
+
+    @if (isOpen)
+    {
+        <div class="jalali-calendar shadow" @onclick:stopPropagation="true">
+            <div class="jalali-calendar-header">
+                <button type="button" class="btn btn-sm btn-light" @onclick="PreviousMonth" aria-label="ماه قبل">‹</button>
+                <strong>@MonthTitle</strong>
+                <button type="button" class="btn btn-sm btn-light" @onclick="NextMonth" aria-label="ماه بعد">›</button>
+            </div>
+            <div class="jalali-calendar-grid jalali-weekdays">
+                @foreach (var day in WeekDays)
+                {
+                    <span>@day</span>
+                }
+            </div>
+            <div class="jalali-calendar-grid">
+                @foreach (var day in CalendarDays)
+                {
+                    if (day is null)
+                    {
+                        <span class="jalali-empty"></span>
+                    }
+                    else
+                    {
+                        var current = day.Value;
+                        <button type="button"
+                                class="jalali-day @(Value?.Date == current.Date ? "selected" : "") @(current.Date == DateTime.Today ? "today" : "")"
+                                @onclick="() => SelectDate(current)">
+                            @Persian.GetDayOfMonth(current)
+                        </button>
+                    }
+                }
+            </div>
+            <div class="jalali-calendar-footer">
+                <button type="button" class="btn btn-sm btn-link" @onclick="SelectToday">امروز</button>
+                <button type="button" class="btn btn-sm btn-link" @onclick="ToggleCalendar">بستن</button>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public DateTime? Value { get; set; }
+    [Parameter] public EventCallback<DateTime?> ValueChanged { get; set; }
+    [Parameter] public string Placeholder { get; set; } = "انتخاب تاریخ";
+    [Parameter] public bool Clearable { get; set; }
+
+    private static readonly PersianCalendar Persian = new();
+    private static readonly string[] MonthNames =
+    {
+        "فروردین", "اردیبهشت", "خرداد", "تیر", "مرداد", "شهریور",
+        "مهر", "آبان", "آذر", "دی", "بهمن", "اسفند"
+    };
+    private static readonly string[] WeekDays = { "ش", "ی", "د", "س", "چ", "پ", "ج" };
+
+    private bool isOpen;
+    private int visibleYear = Persian.GetYear(DateTime.Today);
+    private int visibleMonth = Persian.GetMonth(DateTime.Today);
+
+    private string DisplayValue => Value.HasValue
+        ? $"{Persian.GetYear(Value.Value):0000}/{Persian.GetMonth(Value.Value):00}/{Persian.GetDayOfMonth(Value.Value):00}"
+        : Placeholder;
+
+    private string MonthTitle => $"{MonthNames[visibleMonth - 1]} {ToPersianDigits(visibleYear.ToString())}";
+
+    private List<DateTime?> CalendarDays
+    {
+        get
+        {
+            var firstDay = Persian.ToDateTime(visibleYear, visibleMonth, 1, 0, 0, 0, 0);
+            var offset = ((int)firstDay.DayOfWeek + 1) % 7;
+            var result = new List<DateTime?>();
+            for (var i = 0; i < offset; i++) result.Add(null);
+
+            var count = Persian.GetDaysInMonth(visibleYear, visibleMonth);
+            for (var day = 1; day <= count; day++)
+                result.Add(Persian.ToDateTime(visibleYear, visibleMonth, day, 0, 0, 0, 0));
+
+            return result;
+        }
+    }
+
+    protected override void OnParametersSet()
+    {
+        if (Value.HasValue)
+        {
+            visibleYear = Persian.GetYear(Value.Value);
+            visibleMonth = Persian.GetMonth(Value.Value);
+        }
+    }
+
+    private void ToggleCalendar() => isOpen = !isOpen;
+
+    private void PreviousMonth()
+    {
+        if (visibleMonth == 1) { visibleMonth = 12; visibleYear--; }
+        else visibleMonth--;
+    }
+
+    private void NextMonth()
+    {
+        if (visibleMonth == 12) { visibleMonth = 1; visibleYear++; }
+        else visibleMonth++;
+    }
+
+    private async Task SelectDate(DateTime date)
+    {
+        await ValueChanged.InvokeAsync(date.Date);
+        isOpen = false;
+    }
+
+    private Task ClearValue() => ValueChanged.InvokeAsync(null);
+
+    private Task SelectToday()
+    {
+        var today = DateTime.Today;
+        visibleYear = Persian.GetYear(today);
+        visibleMonth = Persian.GetMonth(today);
+        return SelectDate(today);
+    }
+
+    private static string ToPersianDigits(string value)
+    {
+        const string english = "0123456789";
+        const string persian = "۰۱۲۳۴۵۶۷۸۹";
+        for (var i = 0; i < english.Length; i++)
+            value = value.Replace(english[i], persian[i]);
+        return value;
+    }
+}
