@@ -1,0 +1,276 @@
+@page "/translator/earnings"
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.EntityFrameworkCore
+@using TranslationOffice.Data
+@using TranslationOffice.Models
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject ApplicationDbContext Db
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject NavigationManager Navigation
+
+<PageTitle>کارکرد و دستمزد من</PageTitle>
+
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
+        <div>
+            <h3 class="mb-1">کارکرد و دستمزد من</h3>
+            <small class="text-muted">گزارش مدارک تکمیل‌شده و تأیید صورت‌حساب</small>
+        </div>
+        <button class="btn btn-outline-primary" @onclick="LoadData" disabled="@isLoading">
+            <i class="bi bi-arrow-clockwise"></i> بروزرسانی
+        </button>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="alert alert-danger">@errorMessage</div>
+    }
+    @if (!string.IsNullOrWhiteSpace(successMessage))
+    {
+        <div class="alert alert-success">@successMessage</div>
+    }
+
+    @if (isLoading)
+    {
+        <div class="text-center py-5"><div class="spinner-border"></div><p class="mt-2">در حال دریافت اطلاعات...</p></div>
+    }
+    else
+    {
+        <div class="row g-3 mb-4">
+            <div class="col-md-3">
+                <div class="card border-0 shadow-sm h-100"><div class="card-body">
+                    <div class="text-muted">مدارک تکمیل‌شده</div><h3>@rows.Count</h3>
+                </div></div>
+            </div>
+            <div class="col-md-3">
+                <div class="card border-0 shadow-sm h-100"><div class="card-body">
+                    <div class="text-muted">جمع حق‌الترجمه</div><h4>@Money(rows.Sum(x => x.TranslationFee)) تومان</h4>
+                </div></div>
+            </div>
+            <div class="col-md-3">
+                <div class="card border-0 shadow-sm h-100"><div class="card-body">
+                    <div class="text-muted">دستمزد محاسبه‌شده من</div><h4 class="text-success">@Money(rows.Sum(x => x.Earning)) تومان</h4>
+                </div></div>
+            </div>
+            <div class="col-md-3">
+                <div class="card border-0 shadow-sm h-100"><div class="card-body">
+                    <div class="text-muted">در انتظار تأیید</div><h3>@rows.Count(x => x.ReviewStatus == "Pending")</h3>
+                </div></div>
+            </div>
+        </div>
+
+        <div class="alert alert-info">
+            دستمزد بر اساس درصد ثبت‌شده برای شما و فقط از حق‌الترجمه محاسبه شده است؛ هزینه‌های دادگستری، وزارت امور خارجه و نسخه اضافه در آن محاسبه نمی‌شوند.
+            تأیید این صفحه به معنی تأیید صورت‌حساب کارکرد است، نه اعلام واریز وجه.
+        </div>
+
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white"><strong>ریز کارکرد</strong></div>
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th>تاریخ تکمیل</th><th>شماره سفارش</th><th>مدرک</th>
+                            <th>حق‌الترجمه</th><th>درصد سهم</th><th>دستمزد شما</th>
+                            <th>وضعیت تأیید</th><th>عملیات</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var row in rows)
+                    {
+                        <tr>
+                            <td>@row.CompletedAt.ToLocalTime().ToString("yyyy/MM/dd")</td>
+                            <td>@row.OrderNumber</td>
+                            <td>@row.DocumentName</td>
+                            <td>@Money(row.TranslationFee)</td>
+                            <td>@row.Percent.ToString("0.##")٪</td>
+                            <td class="fw-bold">@Money(row.Earning) تومان</td>
+                            <td>
+                                @if (row.ReviewStatus == "Confirmed")
+                                {
+                                    <span class="badge bg-success">تأیید شده</span>
+                                }
+                                else if (row.ReviewStatus == "Disputed")
+                                {
+                                    <span class="badge bg-danger">اعتراض ثبت شده</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-warning text-dark">در انتظار بررسی شما</span>
+                                }
+                                @if (!string.IsNullOrWhiteSpace(row.ReviewNote))
+                                {
+                                    <small class="d-block text-muted mt-1">توضیح: @row.ReviewNote</small>
+                                }
+                            </td>
+                            <td style="min-width:240px">
+                                @if (row.ReviewStatus == "Pending")
+                                {
+                                    <div class="d-flex flex-column gap-2">
+                                        <button class="btn btn-sm btn-success" @onclick="() => Confirm(row.Id)" disabled="@isSaving">
+                                            <i class="bi bi-check-circle"></i> تأیید مبلغ
+                                        </button>
+                                        <InputText class="form-control form-control-sm" @bind-Value="reviewNotes[row.Id]" placeholder="علت اعتراض را بنویسید" />
+                                        <button class="btn btn-sm btn-outline-danger" @onclick="() => Dispute(row.Id)" disabled="@isSaving">
+                                            ثبت اعتراض
+                                        </button>
+                                    </div>
+                                }
+                                else
+                                {
+                                    <span class="text-muted small">ثبت نهایی شده است</span>
+                                }
+                            </td>
+                        </tr>
+                    }
+                    @if (rows.Count == 0)
+                    {
+                        <tr><td colspan="8" class="text-center text-muted py-4">هنوز مدرک تکمیل‌شده‌ای برای محاسبه دستمزد شما ثبت نشده است.</td></tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private string? currentUserId;
+    private bool isLoading = true;
+    private bool isSaving;
+    private string? errorMessage;
+    private string? successMessage;
+    private List<EarningRow> rows = new();
+    private Dictionary<int, string> reviewNotes = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        currentUserId = state.User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrWhiteSpace(currentUserId))
+        {
+            Navigation.NavigateTo("/", true);
+            return;
+        }
+
+        var validTranslator = await Db.Users.AsNoTracking()
+            .AnyAsync(x => x.Id == currentUserId && x.Role == "Translator");
+        if (!validTranslator)
+        {
+            Navigation.NavigateTo("/", true);
+            return;
+        }
+
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        if (string.IsNullOrWhiteSpace(currentUserId)) return;
+        isLoading = true;
+        errorMessage = null;
+        try
+        {
+            var data = await Db.OrderItems.AsNoTracking()
+                .Where(x => x.TranslatorId == currentUserId &&
+                            x.CompletedAt != null &&
+                            x.TranslationFeeToman != null &&
+                            x.TranslatorCommissionPercentSnapshot != null &&
+                            x.TranslatorEarningToman != null)
+                .Include(x => x.Order)
+                .Include(x => x.DocumentType)
+                .OrderByDescending(x => x.CompletedAt)
+                .ToListAsync();
+
+            rows = data.Select(x => new EarningRow
+            {
+                Id = x.Id,
+                CompletedAt = x.CompletedAt!.Value,
+                OrderNumber = x.Order.OrderNumber,
+                DocumentName = x.DocumentType.Name,
+                TranslationFee = x.TranslationFeeToman!.Value,
+                Percent = x.TranslatorCommissionPercentSnapshot!.Value,
+                Earning = x.TranslatorEarningToman!.Value,
+                ReviewStatus = x.TranslatorEarningReviewStatus,
+                ReviewNote = x.TranslatorEarningReviewNote
+            }).ToList();
+
+            reviewNotes = rows.ToDictionary(x => x.Id, _ => "");
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"خطا در دریافت کارکرد: {ex.GetBaseException().Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private Task Confirm(int itemId) => SaveReview(itemId, "Confirmed");
+
+    private Task Dispute(int itemId)
+    {
+        var note = reviewNotes.TryGetValue(itemId, out var value) ? value?.Trim() : null;
+        if (string.IsNullOrWhiteSpace(note) || note.Length < 5)
+        {
+            errorMessage = "برای ثبت اعتراض، علت آن را حداقل در ۵ نویسه بنویسید.";
+            return Task.CompletedTask;
+        }
+        return SaveReview(itemId, "Disputed", note);
+    }
+
+    private async Task SaveReview(int itemId, string status, string? note = null)
+    {
+        if (isSaving || string.IsNullOrWhiteSpace(currentUserId)) return;
+        isSaving = true;
+        errorMessage = null;
+        successMessage = null;
+        try
+        {
+            var item = await Db.OrderItems.FirstOrDefaultAsync(x =>
+                x.Id == itemId && x.TranslatorId == currentUserId);
+            if (item == null) throw new InvalidOperationException("رکورد کارکرد پیدا نشد.");
+            if (item.CompletedAt == null || item.TranslatorEarningToman == null)
+                throw new InvalidOperationException("این مدرک هنوز در گزارش دستمزد ثبت نشده است.");
+            if (item.TranslatorEarningReviewStatus != "Pending")
+                throw new InvalidOperationException("این صورت‌حساب قبلاً بررسی و ثبت نهایی شده است.");
+
+            item.TranslatorEarningReviewStatus = status;
+            item.TranslatorEarningReviewNote = note;
+            item.TranslatorEarningReviewedAt = DateTime.UtcNow;
+            await Db.SaveChangesAsync();
+
+            successMessage = status == "Confirmed"
+                ? "صورت‌حساب این مدرک با موفقیت تأیید شد."
+                : "اعتراض شما ثبت شد و برای بررسی مدیریت قابل مشاهده است.";
+            await LoadData();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"خطا در ثبت بررسی: {ex.GetBaseException().Message}";
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private static string Money(decimal amount) => amount.ToString("N0");
+
+    private sealed class EarningRow
+    {
+        public int Id { get; set; }
+        public DateTime CompletedAt { get; set; }
+        public string OrderNumber { get; set; } = "";
+        public string DocumentName { get; set; } = "";
+        public decimal TranslationFee { get; set; }
+        public decimal Percent { get; set; }
+        public decimal Earning { get; set; }
+        public string ReviewStatus { get; set; } = "Pending";
+        public string? ReviewNote { get; set; }
+    }
+}
