@@ -10,6 +10,10 @@ public class TranslatorPayment
     public string Method { get; set; } = "BankTransfer";
     public string? TrackingNumber { get; set; }
     public string? Description { get; set; }
+    public string? ReceiptOriginalFileName { get; set; }
+    public string? ReceiptStoredFileName { get; set; }
+    public string? ReceiptContentType { get; set; }
+    public long? ReceiptFileSize { get; set; }
     public string CreatedByAdminId { get; set; } = string.Empty;
     public DateTime CreatedAt { get; set; } = DateTime.Now;
     public bool IsVoided { get; set; }
