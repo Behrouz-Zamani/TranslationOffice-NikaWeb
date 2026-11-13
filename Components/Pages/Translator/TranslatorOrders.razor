@@ -655,6 +655,7 @@
             }
 
             var item = await Db.OrderItems
+                .Include(x => x.Order)
                 .FirstOrDefaultAsync(x =>
                     x.Id == orderItemId &&
                     x.TranslatorId == currentUserId);
@@ -669,6 +670,16 @@
 
             if (files.Count == 0)
                 throw new Exception("فایلی انتخاب نشده است.");
+
+            var customerMobile = await Db.Users
+                .AsNoTracking()
+                .Where(x => x.Id == item.Order.UserId)
+                .Select(x => x.PhoneNumber)
+                .FirstOrDefaultAsync();
+
+            if (string.IsNullOrWhiteSpace(customerMobile))
+                throw new InvalidOperationException(
+                    "شماره موبایل مشتری برای نام‌گذاری فایل تحویلی در دسترس نیست.");
 
             await using var transaction =
                 await Db.Database.BeginTransactionAsync();
@@ -713,7 +724,7 @@
                     OrderId = item.OrderId,
                     OrderItemId = item.Id,
                     TranslatorId = currentUserId,
-                    OriginalFileName = Path.GetFileName(file.Name),
+                    OriginalFileName = $"{customerMobile}_Rasmiha_{DateTime.Now:yyyyMMdd}_{Guid.NewGuid().ToString("N")[..6]}{extension.ToLowerInvariant()}",
                     StoredFileName = storedFileName,
                     ContentType = GetContentType(extension),
                     FileSize = file.Size,
