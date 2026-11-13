@@ -5,6 +5,7 @@
 @using Microsoft.EntityFrameworkCore
 @using TranslationOffice.Data
 @using TranslationOffice.Models
+@using TranslationOffice.Components.Shared
 @attribute [Authorize]
 @rendermode InteractiveServer
 @inject ApplicationDbContext Db
@@ -34,11 +35,11 @@
                 <div class="row g-3 align-items-end">
                     <div class="col-md-4">
                         <label class="form-label">از تاریخ تکمیل</label>
-                        <InputDate class="form-control" @bind-Value="fromDate" />
+                        <PersianDatePicker @bind-Value="fromDate" Placeholder="از تاریخ" Clearable="true" />
                     </div>
                     <div class="col-md-4">
                         <label class="form-label">تا تاریخ تکمیل</label>
-                        <InputDate class="form-control" @bind-Value="toDate" />
+                        <PersianDatePicker @bind-Value="toDate" Placeholder="تا تاریخ" Clearable="true" />
                     </div>
                     <div class="col-md-4">
                         <button class="btn btn-primary" @onclick="LoadReport" disabled="@isLoading">اعمال فیلتر</button>
