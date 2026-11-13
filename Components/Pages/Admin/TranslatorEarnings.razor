@@ -67,10 +67,11 @@
                             <td>@group.Key.TranslatorName</td>
                             <td>@group.Count()</td>
                             <td>@FormatMoney(group.Sum(x => x.TranslationFee)) تومان</td>
-                            <td class="fw-bold">@FormatMoney(group.Sum(x => x.Earning)) تومان</td>\n                            <td>@group.Count(x => x.ReviewStatus == "Confirmed") تأیید / @group.Count(x => x.ReviewStatus == "Disputed") اعتراض</td>
+                            <td class="fw-bold">@FormatMoney(group.Sum(x => x.Earning)) تومان</td>
+                            <td>@group.Count(x => x.ReviewStatus == "Confirmed") تأیید / @group.Count(x => x.ReviewStatus == "Disputed") اعتراض</td>
                         </tr>
                     }
-                    @if (!rows.Any()) { <tr><td colspan="4" class="text-center text-muted py-4">در این بازه موردی ثبت نشده است.</td></tr> }
+                    @if (!rows.Any()) { <tr><td colspan="5" class="text-center text-muted py-4">در این بازه موردی ثبت نشده است.</td></tr> }
                     </tbody>
                 </table>
             </div>
@@ -91,7 +92,9 @@
                             <td>@row.TranslatorName</td>
                             <td>@FormatMoney(row.TranslationFee)</td>
                             <td>@row.Percent.ToString("0.##")٪</td>
-                            <td class="fw-bold">@FormatMoney(row.Earning)</td>\n                            <td>@(row.ReviewStatus == "Confirmed" ? "تأیید شده" : row.ReviewStatus == "Disputed" ? "اعتراض ثبت شده" : "در انتظار")</td>\n                            <td>@row.ReviewNote</td>
+                            <td class="fw-bold">@FormatMoney(row.Earning)</td>
+                            <td>@(row.ReviewStatus == "Confirmed" ? "تأیید شده" : row.ReviewStatus == "Disputed" ? "اعتراض ثبت شده" : "در انتظار")</td>
+                            <td>@row.ReviewNote</td>
                         </tr>
                     }
                     @if (!rows.Any()) { <tr><td colspan="9" class="text-center text-muted py-4">داده‌ای برای نمایش وجود ندارد.</td></tr> }
@@ -161,7 +164,9 @@
                 DocumentName = x.DocumentType.Name,
                 TranslationFee = x.TranslationFeeToman!.Value,
                 Percent = x.TranslatorCommissionPercentSnapshot!.Value,
-                Earning = x.TranslatorEarningToman!.Value
+                Earning = x.TranslatorEarningToman!.Value,
+                ReviewStatus = x.TranslatorEarningReviewStatus,
+                ReviewNote = x.TranslatorEarningReviewNote
             }).ToList();
         }
         catch (Exception ex)
@@ -190,5 +195,7 @@
         public decimal TranslationFee { get; set; }
         public decimal Percent { get; set; }
         public decimal Earning { get; set; }
+        public string ReviewStatus { get; set; } = "Pending";
+        public string? ReviewNote { get; set; }
     }
 }
