@@ -269,6 +269,12 @@ else
                             </div>
                         }
 
+                        <div class="mb-3">
+                            <label class="form-label">شماره موبایل صاحب سفارش</label>
+                            <input class="form-control" @bind="customerMobile" inputmode="tel" placeholder="09xxxxxxxxx" dir="ltr" />
+                            <small class="text-muted">برای نام‌گذاری فایل‌های سفارش استفاده می‌شود.</small>
+                        </div>
+
                         <div class="alert alert-success d-flex justify-content-between">
                             <strong>جمع کل سفارش:</strong>
 
@@ -352,6 +358,7 @@ else
     private decimal currentPrice;
 
     private bool isSubmitting;
+    private string customerMobile = "";
     private bool isCartLoaded;
     private bool cartLoadFailed;
 
@@ -760,6 +767,24 @@ else
             ? activeGuestToken ?? GuestOrderToken.Generate()
             : null;
 
+        var accountMobile = currentUserId == null
+            ? null
+            : await Db.Users.AsNoTracking()
+                .Where(x => x.Id == currentUserId)
+                .Select(x => x.PhoneNumber)
+                .FirstOrDefaultAsync();
+
+        var mobileForOrder = string.IsNullOrWhiteSpace(accountMobile)
+            ? customerMobile.Trim()
+            : accountMobile.Trim();
+
+        if (string.IsNullOrWhiteSpace(mobileForOrder))
+        {
+            errorMessage = "برای ثبت سفارش، شماره موبایل صاحب سفارش را وارد کنید.";
+            isSubmitting = false;
+            return;
+        }
+
         var savedDocuments = new List<OrderDocument>();
 
         try
@@ -780,6 +805,7 @@ else
                     // سفارش مشتری واردشده مستقیماً به حساب او متصل می‌شود.
                     // فقط سفارش مهمان توکن دسترسی مستقل دارد.
                     UserId = currentUserId,
+                    CustomerMobile = mobileForOrder,
                     GuestAccessTokenHash = currentUserId == null
                         ? GuestOrderToken.Hash(guestToken!)
                         : null,
@@ -818,6 +844,9 @@ else
                     throw new InvalidOperationException(
                         "به این سفارش به دلیل وضعیت فعلی آن نمی‌توان اطلاعات جدید اضافه کرد.");
                 }
+
+                if (string.IsNullOrWhiteSpace(order.CustomerMobile))
+                    order.CustomerMobile = mobileForOrder;
             }
 
             var newOrderItems = new List<(CartItem Cart, OrderItem Item)>();
@@ -896,8 +925,12 @@ else
             {
                 foreach (var file in entry.Cart.Files)
                 {
+                    var extension = Path.GetExtension(file.Name).ToLowerInvariant();
+                    var generatedFileName =
+                        $"{mobileForOrder}_{DateTime.Now:yyyyMMdd}_{Guid.NewGuid().ToString("N")[..6]}{extension}";
+
                     var savedDocument = await DocumentStorage.SaveAsync(
-                        file.Name,
+                        generatedFileName,
                         file.Content,
                         order.Id,
                         entry.Item.Id);
