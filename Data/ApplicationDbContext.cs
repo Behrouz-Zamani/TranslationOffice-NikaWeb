@@ -54,7 +54,9 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
                 .IsRequired()
                 .HasDefaultValue("Pending");
 
-            entity.Property(x => x.CustomerMobile).HasMaxLength(20);\n\n            entity.Property(x => x.GuestAccessTokenHash)
+            entity.Property(x => x.CustomerMobile).HasMaxLength(20);
+
+            entity.Property(x => x.GuestAccessTokenHash)
                 .HasMaxLength(64);
 
             entity.HasIndex(x => x.GuestAccessTokenHash);
