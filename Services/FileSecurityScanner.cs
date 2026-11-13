@@ -1,6 +1,4 @@
-using System.Buffers.Binary;
 using System.IO.Compression;
-using System.Net.Sockets;
 using System.Text;
 
 namespace TranslationOffice.Services;
@@ -13,86 +11,27 @@ public interface IFileSecurityScanner
 }
 
 /// <summary>
-/// Validates file signatures and scans the complete payload with ClamAV INSTREAM.
-/// Fail-closed: upload/download is rejected when ClamAV is unavailable.
+/// Performs fast file-format/signature validation only.
+/// No ClamAV, network calls, or malware scanning are performed.
 /// </summary>
 public sealed class FileSecurityScanner : IFileSecurityScanner
 {
-    private readonly IConfiguration _configuration;
-
-    public FileSecurityScanner(IConfiguration configuration)
-    {
-        _configuration = configuration;
-    }
-
-    public async Task<FileScanResult> ScanAsync(
+    public Task<FileScanResult> ScanAsync(
         string fileName,
         byte[] content,
         CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         if (content is not { Length: > 0 })
-            return new(false, "فایل خالی یا نامعتبر است.");
+            return Task.FromResult(new FileScanResult(false, "فایل خالی یا نامعتبر است."));
 
         var extension = Path.GetExtension(fileName).ToLowerInvariant();
-        if (!HasValidSignature(extension, content))
-            return new(false, "ساختار یا امضای فایل با پسوند آن مطابقت ندارد.");
+        var valid = HasValidSignature(extension, content);
 
-        var host = _configuration["ClamAV:Host"];
-        var portValue = _configuration["ClamAV:Port"];
-        if (string.IsNullOrWhiteSpace(host) ||
-            !int.TryParse(portValue, out var port) ||
-            port is < 1 or > 65535)
-        {
-            return new(false, "سرویس ضدبدافزار پیکربندی نشده است؛ فایل برای حفظ امنیت پذیرفته نشد.");
-        }
-
-        try
-        {
-            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            timeout.CancelAfter(TimeSpan.FromSeconds(20));
-
-            using var client = new TcpClient();
-            await client.ConnectAsync(host, port, timeout.Token);
-            await using var stream = client.GetStream();
-
-            var command = Encoding.ASCII.GetBytes("zINSTREAM\0");
-            await stream.WriteAsync(command, timeout.Token);
-
-            const int chunkSize = 64 * 1024;
-            for (var offset = 0; offset < content.Length; offset += chunkSize)
-            {
-                var count = Math.Min(chunkSize, content.Length - offset);
-                var length = new byte[4];
-                BinaryPrimitives.WriteInt32BigEndian(length, count);
-                await stream.WriteAsync(length, timeout.Token);
-                await stream.WriteAsync(content.AsMemory(offset, count), timeout.Token);
-            }
-
-            await stream.WriteAsync(new byte[4], timeout.Token);
-            await stream.FlushAsync(timeout.Token);
-
-            using var reader = new StreamReader(stream, Encoding.UTF8, leaveOpen: true);
-            var response = await reader.ReadLineAsync(timeout.Token);
-
-            if (response == null)
-                return new(false, "پاسخی از سرویس ضدبدافزار دریافت نشد.");
-
-            if (response.EndsWith(" OK", StringComparison.Ordinal))
-                return new(true, "فایل سالم است.");
-
-            if (response.Contains("FOUND", StringComparison.OrdinalIgnoreCase))
-                return new(false, "محتوای مخرب در فایل شناسایی شد.");
-
-            return new(false, "اسکن فایل با خطا مواجه شد؛ فایل پذیرفته نشد.");
-        }
-        catch (OperationCanceledException)
-        {
-            return new(false, "زمان بررسی امنیتی فایل به پایان رسید؛ فایل پذیرفته نشد.");
-        }
-        catch
-        {
-            return new(false, "سرویس ضدبدافزار در دسترس نیست؛ فایل برای حفظ امنیت پذیرفته نشد.");
-        }
+        return Task.FromResult(valid
+            ? new FileScanResult(true, "ساختار فایل معتبر است.")
+            : new FileScanResult(false, "ساختار فایل با پسوند آن مطابقت ندارد."));
     }
 
     private static bool HasValidSignature(string extension, byte[] bytes)
