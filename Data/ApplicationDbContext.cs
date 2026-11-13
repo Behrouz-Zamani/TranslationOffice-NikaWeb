@@ -20,6 +20,7 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<OrderDocument> OrderDocuments { get; set; }
     public DbSet<OrderDeliveryFile> OrderDeliveryFiles { get; set; }
     public DbSet<ShoppingCart> ShoppingCarts { get; set; }
+    public DbSet<TranslatorPayment> TranslatorPayments { get; set; }
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -77,6 +78,21 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             entity.Property(x => x.CartKey).HasMaxLength(500).IsRequired();
             entity.Property(x => x.CartJson).HasColumnType("nvarchar(max)").IsRequired();
             entity.HasIndex(x => x.CartKey).IsUnique();
+        });
+
+        builder.Entity<TranslatorPayment>(entity =>
+        {
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.TranslatorId).HasMaxLength(450).IsRequired();
+            entity.Property(x => x.AmountToman).HasPrecision(18, 0);
+            entity.Property(x => x.Method).HasMaxLength(30).IsRequired();
+            entity.Property(x => x.TrackingNumber).HasMaxLength(100);
+            entity.Property(x => x.Description).HasMaxLength(1000);
+            entity.Property(x => x.CreatedByAdminId).HasMaxLength(450).IsRequired();
+            entity.Property(x => x.VoidedByAdminId).HasMaxLength(450);
+            entity.Property(x => x.VoidReason).HasMaxLength(500);
+            entity.HasOne(x => x.Translator).WithMany().HasForeignKey(x => x.TranslatorId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasIndex(x => new { x.TranslatorId, x.PaidAt });
         });
 
         // پرداخت
