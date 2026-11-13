@@ -38,7 +38,7 @@ public sealed class FileSecurityScanner : IFileSecurityScanner
     {
         return extension switch
         {
-            ".pdf" => bytes.Length >= 5 && Encoding.ASCII.GetString(bytes, 0, 5) == "%PDF-",
+            ".pdf" => HasPdfHeader(bytes),
             ".jpg" or ".jpeg" => bytes.Length >= 3 &&
                 bytes[0] == 0xFF && bytes[1] == 0xD8 && bytes[2] == 0xFF,
             ".png" => bytes.Length >= 8 &&
@@ -48,6 +48,24 @@ public sealed class FileSecurityScanner : IFileSecurityScanner
             ".docx" => IsValidDocx(bytes),
             _ => false
         };
+    }
+
+    private static bool HasPdfHeader(byte[] bytes)
+    {
+        // PDF specification permits the header to appear within the first 1024 bytes.
+        // This also handles files with a small BOM/leading prefix added by some exporters.
+        var limit = Math.Min(bytes.Length - 5, 1024);
+        for (var i = 0; i <= limit; i++)
+        {
+            if (bytes[i] == (byte)'%' &&
+                bytes[i + 1] == (byte)'P' &&
+                bytes[i + 2] == (byte)'D' &&
+                bytes[i + 3] == (byte)'F' &&
+                bytes[i + 4] == (byte)'-')
+                return true;
+        }
+
+        return false;
     }
 
     private static bool IsValidDocx(byte[] bytes)
