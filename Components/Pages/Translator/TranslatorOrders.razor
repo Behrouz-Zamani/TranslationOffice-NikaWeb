@@ -671,11 +671,17 @@
             if (files.Count == 0)
                 throw new Exception("فایلی انتخاب نشده است.");
 
-            var customerMobile = await Db.Users
-                .AsNoTracking()
-                .Where(x => x.Id == item.Order.UserId)
-                .Select(x => x.PhoneNumber)
-                .FirstOrDefaultAsync();
+            var customerMobile = item.Order.CustomerMobile;
+
+            if (string.IsNullOrWhiteSpace(customerMobile) &&
+                !string.IsNullOrWhiteSpace(item.Order.UserId))
+            {
+                customerMobile = await Db.Users
+                    .AsNoTracking()
+                    .Where(x => x.Id == item.Order.UserId)
+                    .Select(x => x.PhoneNumber)
+                    .FirstOrDefaultAsync();
+            }
 
             if (string.IsNullOrWhiteSpace(customerMobile))
                 throw new InvalidOperationException(
