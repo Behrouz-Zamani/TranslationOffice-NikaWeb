@@ -1,0 +1,44 @@
+/* Central Persian typography for the whole application */
+:root {
+    --app-font: "Vazirmatn", Tahoma, sans-serif;
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+}
+html, body {
+    font-family: var(--app-font) !important;
+    font-optical-sizing: auto;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+body, button, input, textarea, select, optgroup,
+.form-control, .form-select, .form-check-label,
+.btn, .nav-link, .dropdown-menu, .dropdown-item,
+.modal, .popover, .tooltip, .alert, .badge,
+.card, .table, .pagination, .breadcrumb,
+label, legend, fieldset, summary,
+h1, h2, h3, h4, h5, h6, p, span, a, li, small, strong, b, em {
+    font-family: var(--app-font) !important;
+}
+input, textarea, select, button {
+    font-size: inherit;
+}
+body {
+    font-size: 14px;
+    line-height: 1.85;
+}
+h1, h2, h3, h4, h5, h6 {
+    line-height: 1.65;
+    letter-spacing: -0.2px;
+}
+p, li, label, .form-text, .text-muted {
+    line-height: 1.9;
+}
+.btn, .form-control, .form-select {
+    line-height: 1.6;
+}
+/* Keep icon fonts intact */
+.bi, [class^="bi-"], [class*=" bi-"],
+.fa, [class^="fa-"], [class*=" fa-"] {
+    font-family: bootstrap-icons !important;
+    font-style: normal;
+}
