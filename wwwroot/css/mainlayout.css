@@ -21,7 +21,7 @@ html, body {
 
 body {
     overflow-x: hidden;
-    font-family: Tahoma, "Segoe UI", Arial, sans-serif;
+    font-family: "Vazirmatn", Tahoma, sans-serif;
 }
 
 .app-wrapper {
@@ -31,7 +31,7 @@ body {
     flex-direction: column;
     background: var(--layout-bg);
     color: var(--layout-text);
-    font-family: Tahoma, "Segoe UI", Arial, sans-serif;
+    font-family: "Vazirmatn", Tahoma, sans-serif;
     direction: rtl;
     overflow-x: clip;
 }
