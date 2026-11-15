@@ -3504,3 +3504,54 @@ body {
         animation: none;
     }
 }
+
+/* =========================================================
+   GLOBAL PERSIAN FONT FIX - Home / Customer / Admin / Translator
+   Uses local Vazirmatn files so all Blazor layouts share one font.
+========================================================= */
+@font-face {
+    font-family: "Vazirmatn";
+    src: url("/fonts/Vazirmatn-Regular.woff2") format("woff2");
+    font-style: normal;
+    font-weight: 100 500;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: "Vazirmatn";
+    src: url("/fonts/Vazirmatn-Bold.woff2") format("woff2");
+    font-style: normal;
+    font-weight: 600 900;
+    font-display: swap;
+}
+
+html,
+body,
+body *,
+body *::before,
+body *::after,
+.app-wrapper,
+.app-wrapper *,
+.home-page,
+.home-page *,
+.admin-layout,
+.admin-layout *,
+.translator-layout,
+.translator-layout *,
+.admin-content,
+.translator-content,
+button,
+input,
+textarea,
+select,
+option {
+    font-family: "Vazirmatn", Tahoma, "Segoe UI", Arial, sans-serif !important;
+}
+
+/* Preserve Bootstrap Icons glyph font */
+.bi,
+[class^="bi-"],
+[class*=" bi-"] {
+    font-family: "bootstrap-icons" !important;
+    font-style: normal;
+}
