@@ -10,7 +10,8 @@ html, body {
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
 }
-body, button, input, textarea, select, optgroup,
+body, .home-page, .app-wrapper, .admin-layout, .translator-layout, .admin-content, .translator-content,
+button, input, textarea, select, optgroup,
 .form-control, .form-select, .form-check-label,
 .btn, .nav-link, .dropdown-menu, .dropdown-item,
 .modal, .popover, .tooltip, .alert, .badge,
