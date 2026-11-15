@@ -17,7 +17,7 @@
     overflow: hidden;
     color: var(--home-text);
     background: #fff;
-    font-family: Tahoma, "Segoe UI", Arial, sans-serif;
+    font-family: "Vazirmatn", Tahoma, "Segoe UI", Arial, sans-serif !important;
     direction: rtl;
 }
 
