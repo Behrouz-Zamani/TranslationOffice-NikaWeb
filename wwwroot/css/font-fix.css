@@ -1,0 +1,86 @@
+/* TranslationOffice - Persian typography fix
+   Local font files expected in: wwwroot/fonts/
+*/
+
+@font-face {
+    font-family: "Vazirmatn";
+    src: url("/fonts/Vazirmatn-Regular.woff2") format("woff2");
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: "Vazirmatn";
+    src: url("/fonts/Vazirmatn-Medium.woff2") format("woff2");
+    font-style: normal;
+    font-weight: 500 600;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: "Vazirmatn";
+    src: url("/fonts/Vazirmatn-Bold.woff2") format("woff2");
+    font-style: normal;
+    font-weight: 700 900;
+    font-display: swap;
+}
+
+/* Apply consistently across Blazor, Bootstrap, forms and page layouts. */
+:root {
+    font-family: "Vazirmatn", Tahoma, sans-serif;
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+}
+
+html,
+body,
+button,
+input,
+select,
+textarea,
+option,
+optgroup,
+label,
+table,
+.tooltip,
+.popover,
+.modal,
+.dropdown-menu {
+    font-family: "Vazirmatn", Tahoma, sans-serif !important;
+}
+
+body,
+.app-wrapper,
+.app-main,
+.home-page,
+.site-header,
+.site-footer,
+.card,
+.form-control,
+.form-select,
+.btn,
+.nav-link {
+    font-family: "Vazirmatn", Tahoma, sans-serif !important;
+}
+
+h1, h2, h3, h4, h5, h6,
+strong, b, .fw-bold, .fw-semibold {
+    font-family: "Vazirmatn", Tahoma, sans-serif !important;
+}
+
+body {
+    font-weight: 400;
+    font-size: 14px;
+    line-height: 1.9;
+    font-synthesis: none;
+}
+
+h1, h2, h3, h4, h5, h6,
+strong, b, .fw-bold {
+    font-weight: 700;
+}
+
+button, .btn, .nav-link, label {
+    font-weight: 500;
+}
